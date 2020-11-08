@@ -1,0 +1,48 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 16
+VisualStudioVersion = 16.0.30523.141
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "Engine", "Libraries\Engine.vcxproj", "{CF3E8855-6A92-4C00-B3E6-2612D5BB3B51}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "App", "App", "{E7BF409C-1A9B-478A-8EEF-5501261839A3}"
+EndProject
+Project("{39E2626F-3545-4960-A6E8-258AD8476CE5}") = "App.Packaging", "Libraries\App\App.Packaging\App.Packaging.androidproj", "{B2EBEC99-9D11-45E8-A508-0C2F71E67A32}"
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "App.NativeActivity", "Libraries\App\App.NativeActivity\App.NativeActivity.vcxproj", "{E1D1A7C0-07B5-4C61-AD3C-F3A2CAE3B66F}"
+	ProjectSection(ProjectDependencies) = postProject
+		{CF3E8855-6A92-4C00-B3E6-2612D5BB3B51} = {CF3E8855-6A92-4C00-B3E6-2612D5BB3B51}
+	EndProjectSection
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|ARM64 = Debug|ARM64
+		Release|ARM64 = Release|ARM64
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{CF3E8855-6A92-4C00-B3E6-2612D5BB3B51}.Debug|ARM64.ActiveCfg = Debug|ARM64
+		{CF3E8855-6A92-4C00-B3E6-2612D5BB3B51}.Debug|ARM64.Build.0 = Debug|ARM64
+		{CF3E8855-6A92-4C00-B3E6-2612D5BB3B51}.Release|ARM64.ActiveCfg = Release|ARM64
+		{CF3E8855-6A92-4C00-B3E6-2612D5BB3B51}.Release|ARM64.Build.0 = Release|ARM64
+		{B2EBEC99-9D11-45E8-A508-0C2F71E67A32}.Debug|ARM64.ActiveCfg = Debug|ARM64
+		{B2EBEC99-9D11-45E8-A508-0C2F71E67A32}.Debug|ARM64.Build.0 = Debug|ARM64
+		{B2EBEC99-9D11-45E8-A508-0C2F71E67A32}.Debug|ARM64.Deploy.0 = Debug|ARM64
+		{B2EBEC99-9D11-45E8-A508-0C2F71E67A32}.Release|ARM64.ActiveCfg = Release|ARM64
+		{B2EBEC99-9D11-45E8-A508-0C2F71E67A32}.Release|ARM64.Build.0 = Release|ARM64
+		{B2EBEC99-9D11-45E8-A508-0C2F71E67A32}.Release|ARM64.Deploy.0 = Release|ARM64
+		{E1D1A7C0-07B5-4C61-AD3C-F3A2CAE3B66F}.Debug|ARM64.ActiveCfg = Debug|ARM64
+		{E1D1A7C0-07B5-4C61-AD3C-F3A2CAE3B66F}.Debug|ARM64.Build.0 = Debug|ARM64
+		{E1D1A7C0-07B5-4C61-AD3C-F3A2CAE3B66F}.Release|ARM64.ActiveCfg = Release|ARM64
+		{E1D1A7C0-07B5-4C61-AD3C-F3A2CAE3B66F}.Release|ARM64.Build.0 = Release|ARM64
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{B2EBEC99-9D11-45E8-A508-0C2F71E67A32} = {E7BF409C-1A9B-478A-8EEF-5501261839A3}
+		{E1D1A7C0-07B5-4C61-AD3C-F3A2CAE3B66F} = {E7BF409C-1A9B-478A-8EEF-5501261839A3}
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {34A7F8B1-1625-4E25-895B-8C49CA26F407}
+	EndGlobalSection
+EndGlobal

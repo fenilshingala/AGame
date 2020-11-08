@@ -1,0 +1,5 @@
+.vs
+Windows/x64/
+Android/ARM64/
+*.vcxproj.user
+*.androidproj.user
