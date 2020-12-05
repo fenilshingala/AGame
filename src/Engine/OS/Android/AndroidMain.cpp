@@ -1,42 +1,78 @@
 #include "../../IApp.h"
+#include "../../IPlatform.h"
+#include <unistd.h>
 
-static IApp* pCurrentApp = nullptr;
+static android_app* pAndroidApp = nullptr;
+static bool ready = false;
 static bool initialized = false;
+static struct Window* pWindow = nullptr;
+static struct ANativeWindow* pNativeWindow = nullptr;
 
 void InitFileSystem(void* _platformData);
 
 // Process the next main command.
-void handle_cmd(android_app* app, int32_t cmd) {
+void handle_cmd(android_app* app, int32_t cmd)
+{
     switch (cmd) {
     case APP_CMD_INIT_WINDOW:
         // The window is being shown, get it ready.
-        InitFileSystem(app);
-        ::pCurrentApp->Init();
-        initialized = true;
+        pNativeWindow = pAndroidApp->window;
+        ready = true;
         break;
     case APP_CMD_TERM_WINDOW:
         // The window is being hidden or closed, clean it up.
-        ::pCurrentApp->Exit();
         break;
     default:
         break;
     }
 }
 
-void AndroidMain(struct android_app* _androidApp, IApp* _pApp)
+void InitWindow(Window* a_pWindow)
 {
-    ::pCurrentApp = _pApp;
-	_androidApp->onAppCmd = handle_cmd;
-    
+    pWindow = a_pWindow;
+    pWindow->pWindowHandle = pNativeWindow;
+}
+
+void ExitWindow(Window* a_pWindow)
+{}
+
+bool WindowShouldClose()
+{
+    return pAndroidApp->destroyRequested;
+}
+
+void AndroidMain(struct android_app* a_pAndroidApp, IApp* a_pApp)
+{
+    ::pAndroidApp = a_pAndroidApp;
+    a_pAndroidApp->onAppCmd = handle_cmd;
+
+    InitFileSystem(a_pAndroidApp);
+
     int events;
     android_poll_source* source;
-    do {
-        if (ALooper_pollAll(initialized ? 1 : 0, nullptr, &events,
+    do
+    {
+        if (ALooper_pollAll(ready ? 1 : 0, nullptr, &events,
             (void**)&source) >= 0) {
-            if (source != NULL) source->process(_androidApp, source);
+            if (source != NULL) source->process(a_pAndroidApp, source);
+        }
+        if (!ready && !initialized)
+        {
+            usleep(1);
+            continue;
         }
 
-        _pApp->Update();
+        if (ready && !initialized)
+        {
+            a_pApp->Init();
+            a_pApp->Load();
+            initialized = true;
+        }
 
-    } while (_androidApp->destroyRequested == 0);
+        a_pApp->Update();
+
+    } while (a_pAndroidApp->destroyRequested == 0);
+
+    a_pApp->Unload();
+    a_pApp->Exit();
 }

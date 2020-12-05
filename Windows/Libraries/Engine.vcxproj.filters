@@ -11,6 +11,9 @@
     <Filter Include="Source Files\ECS">
       <UniqueIdentifier>{569cd560-6ab9-4648-9648-bda36ddabbcf}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Source Files\Renderer">
+      <UniqueIdentifier>{284bfa6c-9e14-4173-8bec-ee774be24db8}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\src\Engine\OS\FileSystem.h">
@@ -25,6 +28,15 @@
     <ClInclude Include="..\..\src\Engine\ECS\EntityManager.h">
       <Filter>Source Files\ECS</Filter>
     </ClInclude>
+    <ClInclude Include="..\..\src\Engine\IRenderer.h">
+      <Filter>Source Files\Renderer</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\Engine\IPlatform.h">
+      <Filter>Source Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\Engine\Log.h">
+      <Filter>Source Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\..\src\Engine\OS\Windows\WindowsMain.cpp">
@@ -38,6 +50,12 @@
     </ClCompile>
     <ClCompile Include="..\..\src\Engine\OS\Windows\WindowsFileSystem.cpp">
       <Filter>Source Files\OS</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\Engine\Renderer\VulkanRenderer.cpp">
+      <Filter>Source Files\Renderer</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\Engine\LogImpl.cpp">
+      <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
 </Project>

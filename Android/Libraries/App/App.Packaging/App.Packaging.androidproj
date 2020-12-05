@@ -40,11 +40,13 @@
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|ARM64'">
     <AntPackage>
       <AndroidAppLibName>$(RootNamespace)</AndroidAppLibName>
+      <WorkingDirectory>$(OutDir)Package\$(RootNamespace)\</WorkingDirectory>
     </AntPackage>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|ARM64'">
     <AntPackage>
       <AndroidAppLibName>$(RootNamespace)</AndroidAppLibName>
+      <WorkingDirectory>$(OutDir)Package\$(RootNamespace)\</WorkingDirectory>
     </AntPackage>
   </ItemDefinitionGroup>
   <ItemGroup>

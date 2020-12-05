@@ -14,6 +14,10 @@
     <ClCompile Include="..\..\..\..\src\App\main.cpp" />
     <ClCompile Include="..\..\..\..\src\Engine\OS\Android\android_native_app_glue.c" />
   </ItemGroup>
+  <ItemGroup>
+    <None Include="..\..\..\..\src\App\Resources\Shaders\basic.frag" />
+    <None Include="..\..\..\..\src\App\Resources\Shaders\basic.vert" />
+  </ItemGroup>
   <PropertyGroup Label="Globals">
     <ProjectGuid>{e1d1a7c0-07b5-4c61-ad3c-f3a2cae3b66f}</ProjectGuid>
     <Keyword>Android</Keyword>
@@ -61,24 +65,33 @@
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
       <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
       <CompileAs>CompileAsCpp</CompileAs>
+      <PreprocessorDefinitions>_DEBUG;__ANDROID_API__=$(AndroidAPILevelNumber);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
-      <LibraryDependencies>android;log;c++_shared;c++abi;m;z;Engine</LibraryDependencies>
+      <LibraryDependencies>android;log;c++_shared;c++abi;m;z;Engine;shaderc;vulkan</LibraryDependencies>
       <AdditionalLibraryDirectories>$(OutDir);$(VS_Ndkroot)\sources\third_party\shaderc\libs\$(UseOfStl)\$(TargetArchAbi);$(StlLibraryPath);%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <IgnoreSpecificDefaultLibraries>
       </IgnoreSpecificDefaultLibraries>
     </Link>
+    <PostBuildEvent>
+      <Command>$(systemroot)\System32\xcopy $(SolutionDir)..\src\App\Resources\Shaders\*.* $(OutDir)Package\$(RootNamespace)\assets\Shaders\ /y</Command>
+    </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|ARM64'">
     <ClCompile>
-      <PrecompiledHeader>Use</PrecompiledHeader>
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
       <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
       <CompileAs>CompileAsCpp</CompileAs>
+      <AdditionalIncludeDirectories>%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
-      <LibraryDependencies>$(AndroidNativeLibs);Engine</LibraryDependencies>
+      <LibraryDependencies>android;log;c++_shared;c++abi;m;z;Engine;shaderc;vulkan</LibraryDependencies>
       <AdditionalLibraryDirectories>$(OutDir);$(VS_Ndkroot)\sources\third_party\shaderc\libs\$(UseOfStl)\$(TargetArchAbi);$(LibraryPath);%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
     </Link>
+    <PostBuildEvent>
+      <Command>$(systemroot)\System32\xcopy $(SolutionDir)..\src\App\Resources\Shaders\*.* $(OutDir)Package\$(RootNamespace)\assets\Shaders\ /y</Command>
+    </PostBuildEvent>
   </ItemDefinitionGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

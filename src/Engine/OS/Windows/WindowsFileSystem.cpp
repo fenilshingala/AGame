@@ -2,62 +2,78 @@
 
 #define WIN32_LEAN_AND_MEAN
 #include <Windows.h>
-#include <stdio.h> // fopen, fclose
-#include <assert.h>
+#include <stdio.h>
+#include "../../Log.h"
 
-void InitFileSystem(void* _platformData)
+void InitFileSystem(void* a_PlatformData)
 {}
 
-void CreateDirecroty(const char* _directoryName)
+void CreateDirecroty(const char* a_sDirectoryName)
 {
-	assert(_directoryName);
+	LOG_IF(a_sDirectoryName, LogSeverity::ERR, "Directory name empty!");
 	
-	if (CreateDirectoryA(_directoryName, NULL) == 0)
+	if (CreateDirectoryA(a_sDirectoryName, NULL) == 0)
 	{
 		if (ERROR_ALREADY_EXISTS == GetLastError())
 		{
-			// LOG
+			LOG(LogSeverity::ERR, "Directory already exist!");
 		}
 		else if (ERROR_PATH_NOT_FOUND == GetLastError())
 		{
-			// LOG
+			LOG(LogSeverity::ERR, "Path already exist!");
 		}
 	}
 }
 
-FileHandle OpenFile(const char* _filename, const char* _mode)
+FileHandle OpenFile(const char* a_sFilename, const char* a_sMode)
 {
-	FILE* pFile = fopen(_filename, _mode);
-	assert(pFile);
+	LOG_IF(a_sFilename, LogSeverity::ERR, "Empty File Name");
+	LOG_IF(a_sMode, LogSeverity::ERR, "Empty File Mode");
+
+	FILE* pFile = fopen(a_sFilename, a_sMode);
+	LOG_IF(pFile, LogSeverity::ERR, "Could not open file %s", a_sFilename);
+
 	return (FileHandle)pFile;
 }
 
-void CloseFile(FileHandle _handle)
+void CloseFile(FileHandle a_Handle)
 {
-	assert(_handle);
-	fclose((FILE*)_handle);
+	LOG_IF(a_Handle, LogSeverity::ERR, "File Handle is NULL");
+	fclose((FILE*)a_Handle);
 }
 
-void FileReadLine(FileHandle _handle, char** _ppBuffer)
+void FileRead(FileHandle a_Handle, char** a_ppBuffer, uint32_t a_uLength)
 {
-	assert(_handle);
-	fgets(*_ppBuffer, 256, (FILE*)_handle);
+	LOG_IF(a_Handle, LogSeverity::ERR, "File Handle is NULL");
+	LOG_IF(*a_ppBuffer, LogSeverity::ERR, "Value at buffer is NULL");
+	fread(*a_ppBuffer, 1, a_uLength, (FILE*)a_Handle);
 }
 
-void FileWriteLine(FileHandle _handle, const char* buffer)
+uint32_t FileSize(FileHandle a_Handle)
 {
-	assert(_handle);
-	fputs(buffer, (FILE*)_handle);
+	LOG_IF(a_Handle, LogSeverity::ERR, "File Handle is NULL");
+
+	FILE* pFile = (FILE*)a_Handle;
+	fseek(pFile, 0L, SEEK_END);
+	uint32_t size = ftell(pFile);
+	fseek(pFile, 0L, SEEK_SET);
+	return size;
 }
 
-long FileTell(FileHandle _handle)
+void FileWriteLine(FileHandle a_Handle, const char* a_sBuffer)
 {
-	assert(_handle);
-	return ftell((FILE*)_handle);
+	LOG_IF(a_Handle, LogSeverity::ERR, "File Handle is NULL");
+	fputs(a_sBuffer, (FILE*)a_Handle);
 }
 
-void FileSeek(FileHandle _handle, long _offset, int _origin)
+long FileTell(FileHandle a_Handle)
 {
-	assert(_handle);
-	fseek((FILE*)_handle, _offset, _origin);
+	LOG_IF(a_Handle, LogSeverity::ERR, "File Handle is NULL");
+	return ftell((FILE*)a_Handle);
+}
+
+void FileSeek(FileHandle a_Handle, long a_lOffset, int a_iOrigin)
+{
+	LOG_IF(a_Handle, LogSeverity::ERR, "File Handle is NULL");
+	fseek((FILE*)a_Handle, a_lOffset, a_iOrigin);
 }

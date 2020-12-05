@@ -1,59 +1,78 @@
 #include "../FileSystem.h"
+#include "../../Log.h"
 
 #include "android_native_app_glue.h"
 #include <sys/stat.h>
 #include <android/asset_manager.h>
-#include <stdio.h> // fopen, fclose
-#include <assert.h>
 
 typedef void* FileHandle;
 static AAssetManager* assetManager = nullptr;
 
-void InitFileSystem(void* _platformData)
+void InitFileSystem(void* a_PlatformData)
 {
-	struct android_app* app = (struct android_app*)_platformData;
+	LOG_IF(a_PlatformData, LogSeverity::ERR, "android_app* is NULL");
+	struct android_app* app = (struct android_app*)a_PlatformData;
 	assetManager = app->activity->assetManager;
 }
 
-void CreateDirecroty(const char* _directoryName)
+FileHandle OpenFile(const char* a_sFilename, const char* a_sMode)
 {
-	assert(_directoryName);
-	
-}
+	LOG_IF(a_sFilename, LogSeverity::ERR, "Empty File Name");
+	LOG_IF(a_sMode, LogSeverity::ERR, "Empty File Mode");
 
-FileHandle OpenFile(const char* _filename, const char* _mode)
-{
-	AAsset* asset = AAssetManager_open(assetManager, _filename, AASSET_MODE_BUFFER);
-	assert(asset);
+	AAsset* asset = AAssetManager_open(assetManager, a_sFilename, AASSET_MODE_BUFFER);
+	LOG_IF(asset, LogSeverity::ERR, "Could not open file %s", a_sFilename);
+
 	return asset;
 }
 
-void CloseFile(FileHandle _handle)
+void CloseFile(FileHandle a_Handle)
 {
-	assert(_handle);
-	AAsset_close((AAsset*)_handle);
+	LOG_IF(a_Handle, LogSeverity::ERR, "File Handle is NULL");
+	AAsset_close((AAsset*)a_Handle);
 }
 
-void FileReadLine(FileHandle _handle, char** _ppBuffer)
+void FileRead(FileHandle a_Handle, char** a_ppBuffer, uint32_t a_uLength)
 {
-	assert(_handle);
-	fgets(*_ppBuffer, 256, (FILE*)_handle);
+	LOG_IF(a_Handle, LogSeverity::ERR, "File Handle is NULL");
+	LOG_IF(*a_ppBuffer, LogSeverity::ERR, "Value at buffer is NULL");
+
+	AAsset* asset = (AAsset*)a_Handle;
+	LOG_IF(AAsset_read(asset, (*a_ppBuffer), a_uLength) >= 0, LogSeverity::ERR, "File read error");
 }
 
-void FileWriteLine(FileHandle _handle, const char* buffer)
+uint32_t FileSize(FileHandle a_Handle)
 {
-	assert(_handle);
-	fputs(buffer, (FILE*)_handle);
+	LOG_IF(a_Handle, LogSeverity::ERR, "File Handle is NULL");
+
+	AAsset* asset = (AAsset*)a_Handle;
+	return AAsset_getLength(asset);
 }
 
-long FileTell(FileHandle _handle)
+// YET TO IMPLEMENT
+void CreateDirecroty(const char* a_sDirectoryName)
 {
-	assert(_handle);
-	return ftell((FILE*)_handle);
+	LOG_IF(a_sDirectoryName, LogSeverity::ERR, "Empty Directory Name");
+	return;
 }
 
-void FileSeek(FileHandle _handle, long _offset, int _origin)
+void FileWriteLine(FileHandle a_Handle, const char* a_sBuffer)
 {
-	assert(_handle);
-	fseek((FILE*)_handle, _offset, _origin);
+	LOG_IF(a_Handle, LogSeverity::ERR, "File Handle is NULL");
+	return;
+}
+//
+
+long FileTell(FileHandle a_Handle)
+{
+	LOG_IF(a_Handle, LogSeverity::ERR, "File Handle is NULL");
+	AAsset* asset = (AAsset*)a_Handle;
+	return (AAsset_getLength(asset) - AAsset_getRemainingLength(asset));
+}
+
+void FileSeek(FileHandle a_Handle, long a_lOffset, int a_iOrigin)
+{
+	LOG_IF(a_Handle, LogSeverity::ERR, "File Handle is NULL");
+	AAsset* asset = (AAsset*)a_Handle;
+	AAsset_seek(asset, a_lOffset, a_iOrigin);
 }

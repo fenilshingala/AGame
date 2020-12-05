@@ -4,4 +4,20 @@
     <ClCompile Include="..\..\..\..\src\App\main.cpp" />
     <ClCompile Include="..\..\..\..\src\Engine\OS\Android\android_native_app_glue.c" />
   </ItemGroup>
+  <ItemGroup>
+    <Filter Include="Resources">
+      <UniqueIdentifier>{e6ba7d84-707d-471c-bccb-fc07bc9b2946}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Resources\Shaders">
+      <UniqueIdentifier>{b6551c54-d2c8-457f-8768-45e924d93c43}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="..\..\..\..\src\App\Resources\Shaders\basic.frag">
+      <Filter>Resources\Shaders</Filter>
+    </None>
+    <None Include="..\..\..\..\src\App\Resources\Shaders\basic.vert">
+      <Filter>Resources\Shaders</Filter>
+    </None>
+  </ItemGroup>
 </Project>
