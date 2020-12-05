@@ -56,6 +56,12 @@ void CreateDirecroty(const char* a_sDirectoryName)
 	return;
 }
 
+bool ExistDirectory(const char* a_sDirectoryPath)
+{
+	LOG_IF(a_sDirectoryPath, LogSeverity::ERR, "Empty Directory Name");
+	return false;
+}
+
 void FileWriteLine(FileHandle a_Handle, const char* a_sBuffer)
 {
 	LOG_IF(a_Handle, LogSeverity::ERR, "File Handle is NULL");

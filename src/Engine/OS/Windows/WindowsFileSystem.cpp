@@ -2,11 +2,24 @@
 
 #define WIN32_LEAN_AND_MEAN
 #include <Windows.h>
+#include <io.h>     // For access().
+#include <sys/types.h>  // For stat().
+#include <sys/stat.h>   // For stat().
 #include <stdio.h>
 #include "../../Log.h"
 
 void InitFileSystem(void* a_PlatformData)
 {}
+
+bool ExistDirectory(const char* a_sDirectoryPath)
+{
+	LOG_IF(a_sDirectoryPath, LogSeverity::ERR, "Directory name empty!");
+
+	struct stat status;
+	stat(a_sDirectoryPath, &status);
+
+	return (status.st_mode & S_IFDIR) != 0;
+}
 
 void CreateDirecroty(const char* a_sDirectoryName)
 {
@@ -20,7 +33,7 @@ void CreateDirecroty(const char* a_sDirectoryName)
 		}
 		else if (ERROR_PATH_NOT_FOUND == GetLastError())
 		{
-			LOG(LogSeverity::ERR, "Path already exist!");
+			LOG(LogSeverity::ERR, "Path not found!");
 		}
 	}
 }

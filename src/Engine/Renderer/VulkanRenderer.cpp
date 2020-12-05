@@ -1496,10 +1496,33 @@ void CreateShaderModule(Renderer* a_pRenderer, const char* a_sPath, ShaderModule
 	std::string inputFilePath = cdbuffer + std::string("\\") + filePath + std::string("\\") + shaderNameWithExt;
 	std::string outputFilePath = cdbuffer + std::string("\\") + filePath + "\\SpirV\\";
 
-	std::string cmd = glslangValidator + " -V " + inputFilePath + " -o " + outputFilePath + shaderNameWithExt + ".spv";
+	if(!ExistDirectory(outputFilePath.c_str()))
+		CreateDirecroty(outputFilePath.c_str());
 
-	if (system(cmd.c_str()) != 0)
-		return;
+	std::string cmd = glslangValidator + " -V " + inputFilePath + " -o " + outputFilePath + shaderNameWithExt + ".spv";
+	
+	STARTUPINFOA        startupInfo;
+	PROCESS_INFORMATION processInfo;
+	memset(&startupInfo, 0, sizeof startupInfo);
+	memset(&processInfo, 0, sizeof processInfo);
+	startupInfo.cb = sizeof(STARTUPINFO);
+	startupInfo.dwFlags |= STARTF_USESTDHANDLES;
+	startupInfo.hStdOutput = NULL;
+	startupInfo.hStdError = NULL;
+
+	{
+		//if (system(cmd.c_str()) != 0)
+		//	return;
+		if (!CreateProcessA(NULL, (LPSTR)cmd.c_str(), NULL, NULL, NULL, NULL, NULL, NULL, &startupInfo, &processInfo))
+			return;
+		WaitForSingleObject(processInfo.hProcess, INFINITE);
+		DWORD exitCode;
+		GetExitCodeProcess(processInfo.hProcess, &exitCode);
+
+		CloseHandle(processInfo.hProcess);
+		CloseHandle(processInfo.hThread);
+	}
+	
 	
 	// create shader module
 	FileHandle file = OpenFile((outputFilePath + shaderNameWithExt + ".spv").c_str(), "rb");
