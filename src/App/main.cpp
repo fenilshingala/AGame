@@ -6,7 +6,9 @@
 
 ShaderModule* pVertexShader = nullptr;
 ShaderModule* pFragmentShader = nullptr;
+Buffer** ppUniformBuffers = nullptr;
 ResourceDescriptor* pResDesc = nullptr;
+DescriptorSet* pDescriptorSet = nullptr;
 Pipeline* pPipeline = nullptr;
 CommandBuffer** cmdBfrs = nullptr;
 static bool appInitialized = false;
@@ -19,6 +21,8 @@ const std::string resourcePath = {
 	""
 #endif
 };
+
+static float in_fragColor[4] = { 1.0f, 0.0f, 0.0f, 0.0f };
 
 class App : public IApp
 {
@@ -53,9 +57,49 @@ public:
 		CreateShaderModule(pRenderer, (resourcePath + "Shaders/basic.vert").c_str(), &pVertexShader);
 		CreateShaderModule(pRenderer, (resourcePath + "Shaders/basic.frag").c_str(), &pFragmentShader);
 
+		ppUniformBuffers = (Buffer**)malloc(pRenderer->maxInFlightFrames * sizeof(Buffer*));
+		for (uint32_t i = 0; i < pRenderer->maxInFlightFrames; ++i)
+		{
+			ppUniformBuffers[i] = new Buffer();
+			ppUniformBuffers[i]->desc = {
+				(uint64_t)sizeof(in_fragColor),
+				VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
+				VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT,
+				(void*)(in_fragColor)
+			};
+			CreateBuffer(pRenderer, &ppUniformBuffers[i]);
+		}
+
+
 		pResDesc = new ResourceDescriptor();
+		pResDesc->desc.descriptors.push_back(
+			{
+				(uint32_t)DescriptorUpdateFrequency::NONE,	// set
+				{
+					0,										// binding
+					VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,		// type
+					1,										// count
+					VK_PIPELINE_STAGE_VERTEX_SHADER_BIT,	// stage flag
+					nullptr									// Immutable Sampler
+				},
+				"UniformBufferObject"
+			}
+		);
 		CreateResourceDescriptor(pRenderer, &pResDesc);
 
+		pDescriptorSet = new DescriptorSet();
+		pDescriptorSet->desc = { pResDesc, DescriptorUpdateFrequency::NONE, pRenderer->maxInFlightFrames };
+		CreateDescriptorSet(pRenderer, &pDescriptorSet);
+
+		DescriptorUpdateInfo descUpdateInfo;
+		descUpdateInfo.name = "UniformBufferObject";
+		descUpdateInfo.mBufferInfo.offset = 0;
+		for (uint32_t i = 0; i < pRenderer->maxInFlightFrames; ++i)
+		{
+			descUpdateInfo.mBufferInfo.buffer = ppUniformBuffers[i]->buffer;
+			descUpdateInfo.mBufferInfo.range = ppUniformBuffers[i]->desc.bufferSize;
+			UpdateDescriptorSet(pRenderer, i, pDescriptorSet, 1, &descUpdateInfo);
+		}
 		pPipeline = new Pipeline();
 
 		appInitialized = true;
@@ -65,8 +109,18 @@ public:
 	{
 		delete pPipeline;
 
+		DestroyDescriptorSet(pRenderer, &pDescriptorSet);
+		delete pDescriptorSet;
+
 		DestroyResourceDescriptor(pRenderer, &pResDesc);
 		delete pResDesc;
+
+		for (uint32_t i = 0; i < pRenderer->maxInFlightFrames; ++i)
+		{
+			DestroyBuffer(pRenderer, &ppUniformBuffers[i]);
+			delete ppUniformBuffers[i];
+		}
+		free(ppUniformBuffers);
 
 		DestroyShaderModule(pRenderer, &pFragmentShader);
 		delete pFragmentShader;
@@ -153,11 +207,12 @@ public:
 
 			SetViewport(pCmd, 0.0f, 0.0f, (float)pRenderTarget->pTexture->desc.width, (float)pRenderTarget->pTexture->desc.height, 1.0f, 1.0f);
 			SetScissors(pCmd, 0, 0, pRenderTarget->pTexture->desc.width, pRenderTarget->pTexture->desc.height);
+			BindDescriptorSet(pCmd, currentFrame, pDescriptorSet);
 			BindPipeline(pCmd, pPipeline);
 			Draw(pCmd, 3, 0);
 
 			BindRenderTargets(pCmd, 0, nullptr);
-			TransitionImageLayout(pCmd, pRenderer->swapchainRenderTargets[imageIndex]->pTexture, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
+			TransitionImageLayout(pCmd, pRenderTarget->pTexture, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
 			EndCommandBuffer(pCmd);
 
 			Submit(pCmd);

@@ -1,6 +1,12 @@
 #version 450
 #extension GL_ARB_separate_shader_objects : enable
 
+layout(binding = 0) uniform UniformBufferObject
+{
+    vec3 in_fragColor;
+    float pad0;
+} ubo;
+
 layout(location = 0) out vec3 fragColor;
 
 vec2 positions[3] = vec2[](
@@ -17,5 +23,5 @@ vec3 colors[3] = vec3[](
 
 void main() {
     gl_Position = vec4(positions[gl_VertexIndex], 0.0, 1.0);
-    fragColor = colors[gl_VertexIndex];
+    fragColor = ubo.in_fragColor;//colors[gl_VertexIndex];
 }

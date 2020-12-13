@@ -2,6 +2,8 @@
 
 #include "IPlatform.h"
 #include <vector>
+#include <unordered_map>
+#include <string>
 #if defined(_WIN32)
 #define VK_USE_PLATFORM_WIN32_KHR
 #endif
@@ -47,6 +49,33 @@ struct RenderTarget
 #define INVALID_RT_ID uint32_t(-1)
 	RenderTarget() :
 		pTexture(nullptr), id(INVALID_RT_ID)
+	{}
+};
+
+struct BufferDesc
+{
+	uint64_t				bufferSize;
+	VkBufferUsageFlags		bufferUsageFlags;
+	VkMemoryPropertyFlags	memoryPropertyFlags;
+	void*					pData;
+
+	BufferDesc() :
+		bufferSize(), bufferUsageFlags(VK_BUFFER_USAGE_VERTEX_BUFFER_BIT), memoryPropertyFlags(), pData(nullptr)
+	{}
+
+	BufferDesc(uint64_t a_uBufferSize, VkBufferUsageFlags a_bufferUsageFlags, VkMemoryPropertyFlags a_memoryPropertyFlags, void* a_pData) :
+		bufferSize(a_uBufferSize), bufferUsageFlags(a_bufferUsageFlags), memoryPropertyFlags(a_memoryPropertyFlags), pData(a_pData)
+	{}
+};
+
+struct Buffer
+{
+	BufferDesc		desc;
+	VkBuffer		buffer;
+	VkDeviceMemory	bufferMemory;
+
+	Buffer() :
+		desc(), buffer(VK_NULL_HANDLE), bufferMemory(VK_NULL_HANDLE)
 	{}
 };
 
@@ -99,23 +128,91 @@ struct CommandBuffer
 	{}
 };
 
+enum class DescriptorUpdateFrequency
+{
+	NONE = 0,
+	PER_FRAME,
+	PER_BATCH,
+	PER_DRAW,
+	COUNT,
+};
+
+struct DescriptorInfo
+{
+	uint32_t						set;
+	VkDescriptorSetLayoutBinding	binding;
+	std::string						name;
+
+	DescriptorInfo(uint32_t a_uSet, VkDescriptorSetLayoutBinding a_binding, std::string a_sName) :
+		set(a_uSet), binding(a_binding), name(a_sName)
+	{}
+};
+
 struct ResourceDescriptorDesc
 {
-	std::vector<VkDescriptorSetLayoutBinding> bindings;
+	std::vector<DescriptorInfo> descriptors;
 
 	ResourceDescriptorDesc() :
-		bindings()
+		descriptors()
 	{}
 };
 
 struct ResourceDescriptor
 {
-	ResourceDescriptorDesc	desc;
-	VkDescriptorSetLayout	descriptorSetLayout;
-	VkPipelineLayout		pipelineLayout;
+	ResourceDescriptorDesc					desc;
+	std::vector<DescriptorInfo>				descriptorInfos[(uint32_t)DescriptorUpdateFrequency::COUNT];
+	std::unordered_map<uint32_t, uint32_t>	nameToDescriptorInfoIndexMap;
+	VkDescriptorSetLayout					descriptorSetLayouts[(uint32_t)DescriptorUpdateFrequency::COUNT];
+	VkDescriptorUpdateTemplate				descriptorUpdateTemplates[(uint32_t)DescriptorUpdateFrequency::COUNT];
+	VkPipelineLayout						pipelineLayout;
 
 	ResourceDescriptor() :
-		desc(), descriptorSetLayout(VK_NULL_HANDLE), pipelineLayout(VK_NULL_HANDLE)
+		desc(), descriptorInfos(), nameToDescriptorInfoIndexMap(), descriptorSetLayouts(), descriptorUpdateTemplates(), pipelineLayout(VK_NULL_HANDLE)
+	{}
+};
+
+struct DescriptorSetDesc
+{
+	ResourceDescriptor*			pResourceDescriptor;
+	DescriptorUpdateFrequency	updateFrequency;
+	uint32_t					maxSet;
+
+	DescriptorSetDesc() :
+		pResourceDescriptor(nullptr), updateFrequency(DescriptorUpdateFrequency::NONE), maxSet(0)
+	{}
+
+	DescriptorSetDesc(ResourceDescriptor* a_pResourceDescriptor, DescriptorUpdateFrequency a_eUpdateFrequency, uint32_t a_uMaxSet) :
+		pResourceDescriptor(a_pResourceDescriptor), updateFrequency(a_eUpdateFrequency), maxSet(a_uMaxSet)
+	{}
+};
+
+union DescriptorUpdateData
+{
+	VkDescriptorBufferInfo mBufferInfo;
+	VkDescriptorImageInfo  mImageInfo;
+	VkBufferView           mBuferView;
+};
+
+struct DescriptorSet
+{
+	DescriptorSetDesc					desc;
+	std::vector<VkDescriptorSet>		descriptorSets;
+	std::vector<DescriptorUpdateData>	updateData;
+
+	DescriptorSet() :
+		desc(), descriptorSets(), updateData()
+	{}
+};
+
+struct DescriptorUpdateInfo
+{
+	std::string				name;
+	VkDescriptorImageInfo	mImageInfo;
+	VkDescriptorBufferInfo	mBufferInfo;
+	VkBufferView			mBufferView;
+
+	DescriptorUpdateInfo() :
+		name(), mImageInfo(), mBufferInfo(), mBufferView()
 	{}
 };
 
@@ -203,7 +300,8 @@ struct Renderer
 	uint32_t	   swapchainRenderTargetCount;
 	//
 
-	VkCommandPool commandPool;
+	VkCommandPool		commandPool;
+	VkDescriptorPool	descriptorPool;
 
 	// syncronization objects
 	std::vector<VkSemaphore>	imageAvailableSemaphores;
@@ -215,7 +313,7 @@ struct Renderer
 
 	Renderer() :
 		instance(), debugMessenger(), surface(), physicalDevice(), device(), graphicsQueue(), presentQueue(), swapChain(), swapchainRenderTargets(), swapchainRenderTargetCount(0),
-		commandPool(), maxInFlightFrames(2), currentFrame(0), imageIndex(0)
+		commandPool(), descriptorPool(), maxInFlightFrames(2), currentFrame(0), imageIndex(0)
 	{}
 };
 
@@ -229,11 +327,17 @@ void CreateTexture(Renderer* a_pRenderer, Texture** a_ppTexture);
 void DestroyTexture(Renderer* a_pRenderer, Texture** a_ppTexture);
 void TransitionImageLayout(CommandBuffer* a_pCommandBuffer, Texture* a_pTexture, VkImageLayout oldLayout, VkImageLayout newLayout);
 
+void CreateBuffer(Renderer* a_pRenderer, Buffer** a_ppBuffer);
+void DestroyBuffer(Renderer* a_pRenderer, Buffer** a_ppBuffer);
+
 void CreateRenderPass(Renderer* a_pRenderer, LoadActionsDesc* pLoadActions, RenderPass** a_ppRenderPass);
 void DestroyRenderPass(Renderer* a_pRenderer, RenderPass** a_ppRenderPass);
 
 void CreateResourceDescriptor(Renderer* a_pRenderer, ResourceDescriptor** a_ppResourceDescriptor);
 void DestroyResourceDescriptor(Renderer* a_pRenderer, ResourceDescriptor** a_ppResourceDescriptor);
+void CreateDescriptorSet(Renderer* a_pRenderer, DescriptorSet** a_ppDescriptorSet);
+void DestroyDescriptorSet(Renderer* a_pRenderer, DescriptorSet** a_ppDescriptorSet);
+void UpdateDescriptorSet(Renderer* a_pRenderer, uint32_t index, DescriptorSet* a_pDescriptorSet, uint32_t a_uCount, const DescriptorUpdateInfo* a_pDescriptorUpdateInfos);
 
 void CreateGraphicsPipeline(Renderer* a_ppRenderer, Pipeline** a_ppPipeline);
 void DestroyGraphicsPipeline(Renderer* a_ppRenderer, Pipeline** a_ppPipeline);
@@ -254,6 +358,7 @@ void EndCommandBuffer(CommandBuffer* a_pCommandBuffer);
 void SetViewport(CommandBuffer* a_pCommandBuffer, float a_fX, float a_fY, float a_fWidth, float a_fHeight, float a_fMinDepth, float a_fMaxDepth);
 void SetScissors(CommandBuffer* a_pCommandBuffer, uint32_t a_uX, uint32_t a_uY, uint32_t a_uWidth, uint32_t a_uHeight);
 void BindPipeline(CommandBuffer* a_pCommandBuffer, Pipeline* a_pPipeline);
+void BindDescriptorSet(CommandBuffer* a_pCommandBuffer, uint32_t a_uIndex, DescriptorSet* a_pDescriptorSet);
 void Draw(CommandBuffer* a_pCommandBuffer, uint32_t a_uVertexCount, uint32_t a_uFirstVertex);
 void Submit(CommandBuffer* a_pCommandBuffer);
 void Present(CommandBuffer* a_pCommandBuffer);

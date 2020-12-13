@@ -24,6 +24,7 @@ void PickPhysicalDevice(Renderer** a_pRenderer);
 void CreateLogicalDevice(Renderer** a_ppRenderer);
 
 void CreateCommandPool(Renderer** a_ppRenderer);
+void CreateDescriptorPool(Renderer** a_ppRenderer);
 void CreateSyncObjects(Renderer** a_ppRenderer);
 
 void BeginSingleTimeCommands(Renderer* a_pRenderer, CommandBuffer* a_pCommandBuffer);
@@ -43,6 +44,7 @@ void InitRenderer(Renderer** a_ppRenderer)
 	PickPhysicalDevice(a_ppRenderer);
 	CreateLogicalDevice(a_ppRenderer);
 	CreateCommandPool(a_ppRenderer);
+	CreateDescriptorPool(a_ppRenderer);
 	CreateSyncObjects(a_ppRenderer);
 }
 
@@ -76,6 +78,7 @@ void ExitRenderer(Renderer** a_ppRenderer)
 		vkDestroyFence(pRenderer->device, pRenderer->inFlightFences[i], nullptr);
 		pRenderer->inFlightFences[i] = VK_NULL_HANDLE;
 	}
+	vkDestroyDescriptorPool(pRenderer->device, pRenderer->descriptorPool, nullptr);
 	vkDestroyCommandPool(pRenderer->device, pRenderer->commandPool, nullptr);
 	pRenderer->commandPool = VK_NULL_HANDLE;
 	vkDestroyDevice(pRenderer->device, nullptr);
@@ -142,7 +145,8 @@ void CreateInstance(Renderer** a_ppRenderer)
 		"VK_LAYER_KHRONOS_validation"
 	};
 
-	for(uint32_t i=0; i < (uint32_t)validationLayersToCheck.size() && enableValidation; ++i)
+	enableValidation = validationLayersToCheck.size() > 0;
+	for(uint32_t i=0; (i < (uint32_t)validationLayersToCheck.size()) && enableValidation; ++i)
 	{
 		bool layerFound = false;
 
@@ -702,6 +706,10 @@ void BeginSingleTimeCommands(Renderer* a_pRenderer, CommandBuffer* a_pCommandBuf
 
 void EndSingleTimeCommands(Renderer* a_pRenderer, CommandBuffer* a_pCommandBuffer)
 {
+	LOG_IF(a_pRenderer, LogSeverity::ERR, "a_pRenderer is NULL");
+	LOG_IF(a_pRenderer->commandPool, LogSeverity::ERR, "commandPool is NULL");
+	LOG_IF(a_pCommandBuffer->commandBuffer, LogSeverity::ERR, "commandBuffer is NULL");
+
 	vkEndCommandBuffer(a_pCommandBuffer->commandBuffer);
 
 	VkSubmitInfo submitInfo = {};
@@ -714,6 +722,8 @@ void EndSingleTimeCommands(Renderer* a_pRenderer, CommandBuffer* a_pCommandBuffe
 
 	vkFreeCommandBuffers(a_pRenderer->device, a_pRenderer->commandPool, 1, &(a_pCommandBuffer->commandBuffer));
 }
+
+#pragma region RESOURCES
 
 #pragma region TEXTURE
 
@@ -942,6 +952,123 @@ void TransitionImageLayout(CommandBuffer* a_pCommandBuffer, Texture* a_pTexture,
 
 #pragma endregion
 
+#pragma region BUFFER
+
+void CopyBuffer(Renderer* a_pRenderer, VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize size)
+{
+	CommandBuffer cmdBfr;
+	BeginSingleTimeCommands(a_pRenderer, &cmdBfr);
+
+	VkBufferCopy copyRegion = {};
+	copyRegion.srcOffset = 0; // Optional
+	copyRegion.dstOffset = 0; // Optional
+	copyRegion.size = size;
+	vkCmdCopyBuffer(cmdBfr.commandBuffer, srcBuffer, dstBuffer, 1, &copyRegion);
+
+	EndSingleTimeCommands(a_pRenderer, &cmdBfr);
+}
+
+void CreateBufferUtil(Renderer* a_pRenderer, Buffer** a_ppBuffer)
+{
+	LOG_IF(a_pRenderer, LogSeverity::ERR, "a_pRenderer is NULL");
+	LOG_IF(*a_ppBuffer, LogSeverity::ERR, "Value at a_ppBuffer is NULL");
+
+	Buffer* pBuffer = *a_ppBuffer;
+
+	VkBufferCreateInfo bufferInfo = {};
+	bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+	bufferInfo.size = pBuffer->desc.bufferSize;
+	bufferInfo.usage = pBuffer->desc.bufferUsageFlags;
+	bufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+	bufferInfo.flags = 0;
+	bufferInfo.pNext = NULL;
+	bufferInfo.pQueueFamilyIndices = NULL;
+	bufferInfo.queueFamilyIndexCount = 0;
+	LOG_IF(vkCreateBuffer(a_pRenderer->device, &bufferInfo, nullptr, &pBuffer->buffer) == VK_SUCCESS, LogSeverity::ERR, "Failed to create a buffer");
+
+	VkMemoryRequirements memRequirements;
+	vkGetBufferMemoryRequirements(a_pRenderer->device, pBuffer->buffer, &memRequirements);
+
+	VkMemoryAllocateInfo allocInfo{};
+	allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+	allocInfo.allocationSize = memRequirements.size;
+	allocInfo.memoryTypeIndex = findMemoryType(a_pRenderer, memRequirements.memoryTypeBits, pBuffer->desc.memoryPropertyFlags);
+	LOG_IF(vkAllocateMemory(a_pRenderer->device, &allocInfo, nullptr, &pBuffer->bufferMemory) == VK_SUCCESS, LogSeverity::ERR, "failed to allocate buffer memory!");
+
+	LOG_IF(vkBindBufferMemory(a_pRenderer->device, pBuffer->buffer, pBuffer->bufferMemory, 0) == VK_SUCCESS, LogSeverity::ERR, "failed to bind buffer memory");
+}
+
+void CreateBuffer(Renderer* a_pRenderer, Buffer** a_ppBuffer)
+{
+	LOG_IF(a_pRenderer, LogSeverity::ERR, "a_pRenderer is NULL");
+	LOG_IF(*a_ppBuffer, LogSeverity::ERR, "Value at a_ppBuffer is NULL");
+
+	Buffer* pBuffer = *a_ppBuffer;
+
+	if ((pBuffer->desc.memoryPropertyFlags & VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT) && pBuffer->desc.pData)
+	{
+		VkBufferUsageFlags usageFlags = pBuffer->desc.bufferUsageFlags;
+		pBuffer->desc.bufferUsageFlags |= VK_BUFFER_USAGE_TRANSFER_DST_BIT;
+		CreateBufferUtil(a_pRenderer, a_ppBuffer);
+		pBuffer->desc.bufferUsageFlags = usageFlags;
+
+		{
+			// create staging buffer
+			Buffer* pStagingBuffer = new Buffer();
+			pStagingBuffer->desc.bufferSize = pBuffer->desc.bufferSize;
+			pStagingBuffer->desc.bufferUsageFlags = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
+			pStagingBuffer->desc.memoryPropertyFlags = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
+			CreateBufferUtil(a_pRenderer, &pStagingBuffer);
+
+			// push data to staging buffer
+			void* data;
+			vkMapMemory(a_pRenderer->device, pStagingBuffer->bufferMemory, 0, pStagingBuffer->desc.bufferSize, 0, &data);
+			memcpy(data, pStagingBuffer->desc.pData, (size_t)pStagingBuffer->desc.bufferSize);
+			vkUnmapMemory(a_pRenderer->device, pStagingBuffer->bufferMemory);
+
+			// copy from staging to device local buffer
+			CopyBuffer(a_pRenderer, pStagingBuffer->buffer, pBuffer->buffer, pStagingBuffer->desc.bufferSize);
+
+			DestroyBuffer(a_pRenderer, &pStagingBuffer);
+			delete pStagingBuffer;
+		}
+	}
+	if (pBuffer->desc.memoryPropertyFlags & VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT)
+	{
+		VkMemoryPropertyFlags memoryPropertyFlags = pBuffer->desc.memoryPropertyFlags;
+		memoryPropertyFlags = pBuffer->desc.memoryPropertyFlags;
+		pBuffer->desc.memoryPropertyFlags |= VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
+
+		CreateBufferUtil(a_pRenderer, a_ppBuffer);
+		
+		pBuffer->desc.memoryPropertyFlags = memoryPropertyFlags;
+
+		if (pBuffer->desc.pData)
+		{
+			void* data;
+			vkMapMemory(a_pRenderer->device, pBuffer->bufferMemory, 0, pBuffer->desc.bufferSize, 0, &data);
+			memcpy(data, pBuffer->desc.pData, (size_t)pBuffer->desc.bufferSize);
+			vkUnmapMemory(a_pRenderer->device, pBuffer->bufferMemory);
+		}
+	}
+}
+
+void DestroyBuffer(Renderer* a_pRenderer, Buffer** a_ppBuffer)
+{
+	LOG_IF(a_pRenderer, LogSeverity::ERR, "a_pRenderer is NULL");
+	LOG_IF(*a_ppBuffer, LogSeverity::ERR, "Value at a_ppBuffer is NULL");
+	Buffer* pBuffer = (*a_ppBuffer);
+
+	vkDestroyBuffer(a_pRenderer->device, pBuffer->buffer, nullptr);
+	vkFreeMemory(a_pRenderer->device, pBuffer->bufferMemory, nullptr);
+	pBuffer->buffer = VK_NULL_HANDLE;
+	pBuffer->bufferMemory = VK_NULL_HANDLE;
+}
+
+#pragma endregion
+
+#pragma endregion
+
 void CreateRenderPass(Renderer* a_pRenderer, LoadActionsDesc* pLoadActions, RenderPass** a_ppRenderPass)
 {
 	LOG_IF(a_pRenderer, LogSeverity::ERR, "a_pRenderer is NULL");
@@ -1020,6 +1147,43 @@ void DestroyRenderPass(Renderer* a_pRenderer, RenderPass** a_ppRenderPass)
 	*a_ppRenderPass = VK_NULL_HANDLE;
 }
 
+#pragma region DESCRIPTORS
+
+void CreateDescriptorPool(Renderer** a_ppRenderer)
+{
+	LOG_IF(*a_ppRenderer, LogSeverity::ERR, " Value at a_ppRenderer is NULL");
+
+	Renderer* pRenderer = *a_ppRenderer;
+	VkDescriptorPoolSize descriptorPoolSizes[] =
+	{
+		{ VK_DESCRIPTOR_TYPE_SAMPLER, 1024 },
+		{ VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1 },
+		{ VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, 8192 },
+		{ VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1024 },
+		{ VK_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER, 1024 },
+		{ VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER, 1024 },
+		{ VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 8192 },
+		{ VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1024 },
+		{ VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, 1024 },
+		{ VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC, 1 },
+		{ VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT, 1 },
+	};
+
+	VkDescriptorPoolCreateInfo poolInfo{};
+	poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+	poolInfo.poolSizeCount = sizeof(descriptorPoolSizes) / sizeof(descriptorPoolSizes[0]);
+	poolInfo.pPoolSizes = descriptorPoolSizes;
+	poolInfo.maxSets = 8192;
+	LOG_IF( (vkCreateDescriptorPool(pRenderer->device, &poolInfo, nullptr, &pRenderer->descriptorPool) == VK_SUCCESS),
+		LogSeverity::ERR, "Failed to create descriptor pool" );
+}
+
+void DestroyDescriptorPool(Renderer** a_ppRenderer)
+{
+	LOG_IF(*a_ppRenderer, LogSeverity::ERR, " Value at a_ppRenderer is NULL");
+	vkDestroyDescriptorPool((*a_ppRenderer)->device, (*a_ppRenderer)->descriptorPool, nullptr);
+}
+
 void CreateResourceDescriptor(Renderer* a_pRenderer, ResourceDescriptor** a_ppResourceDescriptor)
 {
 	LOG_IF(a_pRenderer, LogSeverity::ERR, "a_pRenderer is NULL");
@@ -1027,33 +1191,208 @@ void CreateResourceDescriptor(Renderer* a_pRenderer, ResourceDescriptor** a_ppRe
 
 	ResourceDescriptor* pResourceDescriptor = *a_ppResourceDescriptor;
 
-	VkDescriptorSetLayoutCreateInfo layoutInfo = {};
-	layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
-	layoutInfo.bindingCount = static_cast<uint32_t>(pResourceDescriptor->desc.bindings.size());
-	layoutInfo.pBindings = pResourceDescriptor->desc.bindings.data();
-	LOG_IF( (vkCreateDescriptorSetLayout(a_pRenderer->device, &layoutInfo, nullptr, &pResourceDescriptor->descriptorSetLayout) == VK_SUCCESS),
-		LogSeverity::ERR, "failed to create descriptor set layout!" );
+	// sort layouts by set and binding indexes
+	std::vector<DescriptorInfo> descriptors = pResourceDescriptor->desc.descriptors;
+	std::sort(descriptors.begin(), descriptors.end(), [](DescriptorInfo a, DescriptorInfo b) { return a.binding.binding < b.binding.binding; });
+	std::sort(descriptors.begin(), descriptors.end(), [](DescriptorInfo a, DescriptorInfo b) { return a.set < b.set; });
+
+	std::vector<VkDescriptorSetLayoutBinding> layoutBindings[(uint32_t)DescriptorUpdateFrequency::COUNT];
+	uint32_t descriptorCounts[(uint32_t)DescriptorUpdateFrequency::COUNT] = { 0 };
+
+	for (DescriptorInfo& desc : descriptors)
+	{
+		layoutBindings[desc.set].push_back(desc.binding);					// list of descriptor bindings
+		pResourceDescriptor->descriptorInfos[desc.set].push_back(desc);		// store descriptor info in a list of it's set index
+		pResourceDescriptor->nameToDescriptorInfoIndexMap.insert({ (uint32_t)std::hash<std::string>{}(desc.name) , descriptorCounts[desc.set]++ });
+	}
+
+	uint32_t layoutsCount = 0;
+	for (int i = (int)DescriptorUpdateFrequency::COUNT; i >= 0; --i)
+	{
+		const std::vector<VkDescriptorSetLayoutBinding>& binding = layoutBindings[i];
+
+		bool createLayout = binding.size() > 0;
+		if (!createLayout && i < (int)DescriptorUpdateFrequency::COUNT - 1)
+		{
+			createLayout = pResourceDescriptor->descriptorSetLayouts[i + 1] != VK_NULL_HANDLE;
+		}
+
+		if (createLayout)
+		{
+			VkDescriptorSetLayoutCreateInfo layoutInfo = {};
+			layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+			layoutInfo.bindingCount = static_cast<uint32_t>(binding.size());
+			layoutInfo.pBindings = binding.data();
+			LOG_IF((vkCreateDescriptorSetLayout(a_pRenderer->device, &layoutInfo, nullptr, &pResourceDescriptor->descriptorSetLayouts[i]) == VK_SUCCESS),
+				LogSeverity::ERR, "failed to create descriptor set layout!");
+			++layoutsCount;
+		}
+	}
 
 	VkPipelineLayoutCreateInfo pipelineLayoutInfo = {};
 	pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-	pipelineLayoutInfo.setLayoutCount = 1;
-	pipelineLayoutInfo.pSetLayouts = &pResourceDescriptor->descriptorSetLayout;
+	pipelineLayoutInfo.setLayoutCount = layoutsCount;
+	pipelineLayoutInfo.pSetLayouts = pResourceDescriptor->descriptorSetLayouts;
 	pipelineLayoutInfo.pushConstantRangeCount = 0;
 	pipelineLayoutInfo.pPushConstantRanges = nullptr;
 
-	LOG_IF( (vkCreatePipelineLayout(a_pRenderer->device, &pipelineLayoutInfo, nullptr, &pResourceDescriptor->pipelineLayout) == VK_SUCCESS),
-		LogSeverity::ERR, "failed to create pipeline layout!" );
+	LOG_IF((vkCreatePipelineLayout(a_pRenderer->device, &pipelineLayoutInfo, nullptr, &pResourceDescriptor->pipelineLayout) == VK_SUCCESS),
+		LogSeverity::ERR, "failed to create pipeline layout!");
+
+	for (uint32_t i = 0; i < (uint32_t)DescriptorUpdateFrequency::COUNT; ++i)
+	{
+		const std::vector<VkDescriptorSetLayoutBinding>& binding = layoutBindings[i];
+		if (binding.empty())
+			continue;
+
+		std::vector<VkDescriptorUpdateTemplateEntry> descriptorUpdateTemplateEntries(binding.size());
+
+		uint32_t offset = 0;
+		for (uint32_t j = 0; j < binding.size(); ++j)
+		{
+			descriptorUpdateTemplateEntries[i].descriptorCount = binding[j].descriptorCount;
+			descriptorUpdateTemplateEntries[i].descriptorType = binding[j].descriptorType;
+			descriptorUpdateTemplateEntries[i].dstArrayElement = 0;
+			descriptorUpdateTemplateEntries[i].dstBinding = binding[j].binding;
+			descriptorUpdateTemplateEntries[i].offset = offset;
+			descriptorUpdateTemplateEntries[i].stride = sizeof(DescriptorUpdateData);
+			offset += sizeof(DescriptorUpdateData);
+		}
+
+		VkDescriptorUpdateTemplateCreateInfo createInfo = {
+			VK_STRUCTURE_TYPE_DESCRIPTOR_UPDATE_TEMPLATE_CREATE_INFO,  // sType
+			NULL,                                                      // pNext
+			0,                                                         // flags
+			(uint32_t)descriptorUpdateTemplateEntries.size(),          // descriptorUpdateEntryCount
+			descriptorUpdateTemplateEntries.data(),                    // pDescriptorUpdateEntries
+			VK_DESCRIPTOR_UPDATE_TEMPLATE_TYPE_DESCRIPTOR_SET,         // templateType
+			pResourceDescriptor->descriptorSetLayouts[i],              // descriptorSetLayout
+			VK_PIPELINE_BIND_POINT_GRAPHICS,                           // pipelineBindPoint, ignored by given templateType
+			pResourceDescriptor->pipelineLayout,                       // pipelineLayout, ignored by given templateType
+			i,                                                         // set, ignored by given templateType
+		};
+
+		LOG_IF((vkCreateDescriptorUpdateTemplate(a_pRenderer->device, &createInfo, NULL, &pResourceDescriptor->descriptorUpdateTemplates[i]) == VK_SUCCESS),
+			LogSeverity::ERR, "failed to create descriptor update template!");
+	}
 }
 
 void DestroyResourceDescriptor(Renderer* a_pRenderer, ResourceDescriptor** a_ppResourceDescriptor)
 {
 	LOG_IF(a_pRenderer, LogSeverity::ERR, "a_pRenderer is NULL");
-	LOG_IF(*a_ppResourceDescriptor, LogSeverity::ERR, "Value at a_ppResourceDescriptor is NULL"); 
-	vkDestroyPipelineLayout(a_pRenderer->device, (*a_ppResourceDescriptor)->pipelineLayout, nullptr);
-	vkDestroyDescriptorSetLayout(a_pRenderer->device, (*a_ppResourceDescriptor)->descriptorSetLayout, nullptr);
-	(*a_ppResourceDescriptor)->pipelineLayout = VK_NULL_HANDLE;
-	(*a_ppResourceDescriptor)->descriptorSetLayout = VK_NULL_HANDLE;
+	LOG_IF(*a_ppResourceDescriptor, LogSeverity::ERR, "Value at a_ppResourceDescriptor is NULL");
+	ResourceDescriptor* pResourceDescriptor = *a_ppResourceDescriptor;
+
+	vkDestroyPipelineLayout(a_pRenderer->device, pResourceDescriptor->pipelineLayout, nullptr);
+	pResourceDescriptor->pipelineLayout = VK_NULL_HANDLE;
+
+	for (uint32_t i = 0; i < (uint32_t)DescriptorUpdateFrequency::COUNT; ++i)
+	{
+		if(pResourceDescriptor->descriptorUpdateTemplates[i] != VK_NULL_HANDLE)
+			vkDestroyDescriptorUpdateTemplate(a_pRenderer->device, pResourceDescriptor->descriptorUpdateTemplates[i], nullptr);
+		if(pResourceDescriptor->descriptorSetLayouts[i] != VK_NULL_HANDLE)
+			vkDestroyDescriptorSetLayout(a_pRenderer->device, pResourceDescriptor->descriptorSetLayouts[i], nullptr);
+
+		pResourceDescriptor->descriptorUpdateTemplates[i] = VK_NULL_HANDLE;
+		pResourceDescriptor->descriptorSetLayouts[i] = VK_NULL_HANDLE;
+		pResourceDescriptor->descriptorInfos[i].clear();
+	}
 }
+
+void CreateDescriptorSet(Renderer* a_pRenderer, DescriptorSet** a_ppDescriptorSet)
+{
+	LOG_IF(a_pRenderer, LogSeverity::ERR, "a_pRenderer is NULL");
+	LOG_IF(*a_ppDescriptorSet, LogSeverity::ERR, "Value at a_ppDescriptorSet is NULL");
+
+	DescriptorSet* pDescriptorSet = *a_ppDescriptorSet;
+	ResourceDescriptor* pResDesc = pDescriptorSet->desc.pResourceDescriptor;
+	uint32_t updateFrequency = (uint32_t)pDescriptorSet->desc.updateFrequency;
+	LOG_IF(pResDesc->descriptorSetLayouts[updateFrequency],
+		LogSeverity::ERR, "For %u update frequency descriptorSetLayouts is NULL", (uint32_t)updateFrequency);
+	std::vector<VkDescriptorSetLayout> layouts(pDescriptorSet->desc.maxSet, pResDesc->descriptorSetLayouts[updateFrequency]);
+
+	VkDescriptorSetAllocateInfo allocInfo = {};
+	allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+	allocInfo.descriptorPool = a_pRenderer->descriptorPool;
+	allocInfo.descriptorSetCount = pDescriptorSet->desc.maxSet;
+	allocInfo.pSetLayouts = layouts.data();
+	allocInfo.pNext = nullptr;
+
+	pDescriptorSet->descriptorSets.resize(pDescriptorSet->desc.maxSet);
+	pDescriptorSet->updateData.resize(pDescriptorSet->desc.maxSet * pResDesc->descriptorInfos[updateFrequency].size());
+
+	LOG_IF( (vkAllocateDescriptorSets(a_pRenderer->device, &allocInfo, pDescriptorSet->descriptorSets.data()) == VK_SUCCESS),
+		LogSeverity::ERR, "failed to allocate descriptor set");
+}
+
+void DestroyDescriptorSet(Renderer* a_pRenderer, DescriptorSet** a_ppDescriptorSet)
+{
+	LOG_IF(a_pRenderer, LogSeverity::ERR, "a_pRenderer is NULL");
+	LOG_IF(*a_ppDescriptorSet, LogSeverity::ERR, "Value at a_ppDescriptorSet is NULL");
+	DescriptorSet* pDescriptorSet = *a_ppDescriptorSet;
+	pDescriptorSet->descriptorSets.clear();
+	pDescriptorSet->updateData.clear();
+}
+
+void UpdateDescriptorSet(Renderer* a_pRenderer, uint32_t index, DescriptorSet* a_pDescriptorSet, uint32_t a_uCount, const DescriptorUpdateInfo* a_pDescriptorUpdateInfos)
+{
+	LOG_IF(a_pRenderer, LogSeverity::ERR, "a_pRenderer is NULL");
+	LOG_IF(a_pDescriptorSet, LogSeverity::ERR, "a_pDescriptorSet is NULL");
+	LOG_IF(a_pDescriptorUpdateInfos, LogSeverity::ERR, "a_pDescriptorUpdateInfos is NULL");
+
+	ResourceDescriptor* pResourceDescriptor = a_pDescriptorSet->desc.pResourceDescriptor;
+	uint32_t updateFrequency = (uint32_t)a_pDescriptorSet->desc.updateFrequency;
+	DescriptorUpdateData* pUpdateData = nullptr;
+
+	for (uint32_t i = 0; i < a_uCount; ++i)
+	{
+		const DescriptorUpdateInfo& pInfo = a_pDescriptorUpdateInfos[i];
+		uint32_t nameHash = (uint32_t)std::hash<std::string>{}(pInfo.name);
+		uint32_t descIndex = (uint32_t)-1;
+
+		std::unordered_map<uint32_t, uint32_t>::const_iterator itr = pResourceDescriptor->nameToDescriptorInfoIndexMap.find(nameHash);
+		if (itr != pResourceDescriptor->nameToDescriptorInfoIndexMap.end())
+		{
+			descIndex = itr->second;
+		}
+		else
+		{
+			LOG(LogSeverity::ERR, "Descriptor of name %s not found!", pInfo.name);
+			return;
+		}
+
+		DescriptorInfo& descInfo = pResourceDescriptor->descriptorInfos[updateFrequency][descIndex];
+		uint32_t updateIndexOffset = ((uint32_t)pResourceDescriptor->descriptorInfos[updateFrequency].size() * index) + descIndex;
+		pUpdateData = &(a_pDescriptorSet->updateData[updateIndexOffset]);
+
+		switch (descInfo.binding.descriptorType)
+		{
+		case VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER:
+			pUpdateData->mBufferInfo = a_pDescriptorUpdateInfos[i].mBufferInfo;
+			break;
+		case VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER:
+			pUpdateData->mImageInfo = a_pDescriptorUpdateInfos[i].mImageInfo;
+			break;
+		default:
+			break;
+		}
+	}
+
+	vkUpdateDescriptorSetWithTemplate(a_pRenderer->device, a_pDescriptorSet->descriptorSets[index],
+		a_pDescriptorSet->desc.pResourceDescriptor->descriptorUpdateTemplates[updateFrequency], pUpdateData);
+}
+
+void BindDescriptorSet(CommandBuffer* a_pCommandBuffer, uint32_t a_uIndex, DescriptorSet* a_pDescriptorSet)
+{
+	LOG_IF(a_pDescriptorSet, LogSeverity::ERR, "a_pDescriptorSet is NULL");
+
+	ResourceDescriptor* pResourceDescriptor = a_pDescriptorSet->desc.pResourceDescriptor;
+	uint32_t updateFrequency = (uint32_t)a_pDescriptorSet->desc.updateFrequency;
+	vkCmdBindDescriptorSets(a_pCommandBuffer->commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pResourceDescriptor->pipelineLayout, updateFrequency, 1,
+		&a_pDescriptorSet->descriptorSets[a_uIndex], 0, NULL);
+}
+
+#pragma endregion
 
 void CreateGraphicsPipeline(Renderer* a_pRenderer, Pipeline** a_ppPipeline)
 {
