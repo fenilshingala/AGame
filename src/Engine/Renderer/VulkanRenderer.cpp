@@ -34,7 +34,7 @@ VkImageView CreateImageView(Renderer* pRenderer, VkImage image, VkFormat format,
 
 static std::unordered_map<uint32_t, VkRenderPass>	renderPasses;
 static std::unordered_map<uint32_t, VkFramebuffer>	frameBuffers;
-
+static uint32_t RT_IDs = 0;
 
 void InitRenderer(Renderer** a_ppRenderer)
 {
@@ -183,7 +183,7 @@ void CreateInstance(Renderer** a_ppRenderer)
 	appInfo.applicationVersion = VK_MAKE_VERSION(1, 0, 0);
 	appInfo.pEngineName = "Engine";
 	appInfo.engineVersion = VK_MAKE_VERSION(1, 0, 0);
-	appInfo.apiVersion = VK_API_VERSION_1_0;
+	appInfo.apiVersion = VK_API_VERSION_1_1;
 
 	VkInstanceCreateInfo createInfo = {};
 	createInfo.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
@@ -608,13 +608,12 @@ void CreateSwapchain(Renderer** a_ppRenderer)
 	CommandBuffer cmdBfr;
 	BeginSingleTimeCommands(pRenderer, &cmdBfr);
 
-	uint32_t swapchainID = 0;	// [0, 2] are reserved for swapchain images
 	for (size_t i = 0; i < imageCount; i++)
 	{
 		pRenderer->swapchainRenderTargets[i]->pTexture = new Texture();
 		LOG_IF(pRenderer->swapchainRenderTargets[i]->pTexture, LogSeverity::ERR, "pTexture is uninitialized!");
 
-		pRenderer->swapchainRenderTargets[i]->id = swapchainID++;
+		pRenderer->swapchainRenderTargets[i]->id = RT_IDs++;
 		pRenderer->swapchainRenderTargets[i]->pTexture->desc.format = surfaceFormat.format;
 		pRenderer->swapchainRenderTargets[i]->pTexture->desc.width = extent.width;
 		pRenderer->swapchainRenderTargets[i]->pTexture->desc.height = extent.height;
@@ -1065,6 +1064,20 @@ void DestroyBuffer(Renderer* a_pRenderer, Buffer** a_ppBuffer)
 	pBuffer->bufferMemory = VK_NULL_HANDLE;
 }
 
+void UpdateBuffer(Renderer* a_pRenderer, Buffer* a_pBuffer, void* a_pData, uint64_t a_uSize)
+{
+	if (!a_pData || (a_uSize <= 0))
+		return;
+
+	LOG_IF(a_pRenderer, LogSeverity::ERR, "a_pRenderer is NULL");
+	LOG_IF(a_pBuffer, LogSeverity::ERR, "a_pBuffer is NULL");
+	
+	void* data;
+	vkMapMemory(a_pRenderer->device, a_pBuffer->bufferMemory, 0, a_uSize, 0, &data);
+	memcpy(data, a_pData, (size_t)a_uSize);
+	vkUnmapMemory(a_pRenderer->device, a_pBuffer->bufferMemory);
+}
+
 #pragma endregion
 
 #pragma endregion
@@ -1196,7 +1209,7 @@ void CreateResourceDescriptor(Renderer* a_pRenderer, ResourceDescriptor** a_ppRe
 	std::sort(descriptors.begin(), descriptors.end(), [](DescriptorInfo a, DescriptorInfo b) { return a.binding.binding < b.binding.binding; });
 	std::sort(descriptors.begin(), descriptors.end(), [](DescriptorInfo a, DescriptorInfo b) { return a.set < b.set; });
 
-	std::vector<VkDescriptorSetLayoutBinding> layoutBindings[(uint32_t)DescriptorUpdateFrequency::COUNT];
+	std::vector<VkDescriptorSetLayoutBinding> layoutBindings[(uint32_t)DescriptorUpdateFrequency::COUNT] = {};
 	uint32_t descriptorCounts[(uint32_t)DescriptorUpdateFrequency::COUNT] = { 0 };
 
 	for (DescriptorInfo& desc : descriptors)
@@ -1207,7 +1220,7 @@ void CreateResourceDescriptor(Renderer* a_pRenderer, ResourceDescriptor** a_ppRe
 	}
 
 	uint32_t layoutsCount = 0;
-	for (int i = (int)DescriptorUpdateFrequency::COUNT; i >= 0; --i)
+	for (int i = (int)DescriptorUpdateFrequency::COUNT-1; i >= 0; --i)
 	{
 		const std::vector<VkDescriptorSetLayoutBinding>& binding = layoutBindings[i];
 
@@ -1357,7 +1370,7 @@ void UpdateDescriptorSet(Renderer* a_pRenderer, uint32_t index, DescriptorSet* a
 		}
 		else
 		{
-			LOG(LogSeverity::ERR, "Descriptor of name %s not found!", pInfo.name);
+			LOG(LogSeverity::ERR, "Descriptor of name %s not found!", pInfo.name.c_str());
 			return;
 		}
 
@@ -1616,7 +1629,6 @@ void CreateRenderTarget(Renderer* a_pRenderer, RenderTarget** a_ppRenderTarget)
 	LOG_IF((*a_ppRenderTarget)->pTexture, LogSeverity::ERR, "pTexture is NULL");
 	LOG_IF(((*a_ppRenderTarget)->id != INVALID_RT_ID), LogSeverity::ERR, "RenderTarger is already initialized");
 
-	static uint32_t RT_IDs = 3;	// [0, 2] reserved for Swapchain images
 	RenderTarget* pRenderTarget = *a_ppRenderTarget;
 	pRenderTarget->id = RT_IDs++;
 	CreateTexture(a_pRenderer, &pRenderTarget->pTexture);

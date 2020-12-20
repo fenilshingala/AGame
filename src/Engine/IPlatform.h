@@ -8,11 +8,12 @@ struct Window
 	uint32_t width;
 	uint32_t height;
 	bool fullScreen;
+	bool minimized;
 	void* pWindowHandle;
 	IApp* pApp;
 
 	Window() :
-		width(0), height(0), fullScreen(false), pWindowHandle(nullptr), pApp(nullptr)
+		width(0), height(0), fullScreen(false), minimized(false), pWindowHandle(nullptr), pApp(nullptr)
 	{}
 };
 

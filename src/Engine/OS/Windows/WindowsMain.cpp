@@ -6,6 +6,23 @@
 
 static struct Window* pWindow = nullptr;
 static bool windowIsResizing = false;
+static bool needsResize = false;
+
+void UpdateWindowDimensions(Window* a_pWindow)
+{
+	HWND hwnd = (HWND)a_pWindow->pWindowHandle;
+	RECT clientRect;
+	GetClientRect(hwnd, &clientRect);
+	uint32_t width = uint32_t(clientRect.right - clientRect.left);
+	uint32_t height = uint32_t(clientRect.bottom - clientRect.top);
+
+	if (pWindow->width != width || pWindow->height != height)
+	{
+		pWindow->width = width;
+		pWindow->height = height;
+		needsResize = true;
+	}
+}
 
 LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 {
@@ -25,31 +42,38 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 
 	case WM_EXITSIZEMOVE:
 		windowIsResizing = false;
+		if (!pWindow->fullScreen)
 		{
-			RECT clientRect;
-			GetClientRect(hwnd, &clientRect);
-			uint32_t width = uint32_t(clientRect.right - clientRect.left);
-			uint32_t height = uint32_t(clientRect.bottom - clientRect.top);
-
-			bool needsResize = false;
-			if (pWindow->width != width || pWindow->height != height)
-			{
-				pWindow->width = width;
-				pWindow->height = height;
-				needsResize = true;
-			}
-
-			if (pWindow->pApp && !windowIsResizing && needsResize)
-			{
-				pWindow->pApp->Unload();
-				pWindow->pApp->Load();
-				needsResize = false;
-			}
+			UpdateWindowDimensions(pWindow);
 		}
 		break;
 	
 	case WM_SIZE:
+		switch (wParam)
+		{
+		case SIZE_RESTORED:
+		case SIZE_MAXIMIZED:
+			pWindow->minimized = false;
+			if (!pWindow->fullScreen && !windowIsResizing)
+			{
+				UpdateWindowDimensions(pWindow);
+			}
+			break;
+		case SIZE_MINIMIZED:
+			pWindow->minimized = true;
+			break;
+		default:
+			break;
+		}
+	default:
 		break;
+	}
+
+	if (pWindow->pApp && !windowIsResizing && needsResize)
+	{
+		pWindow->pApp->Unload();
+		pWindow->pApp->Load();
+		needsResize = false;
 	}
 
 	return DefWindowProcW(hwnd, uMsg, wParam, lParam);

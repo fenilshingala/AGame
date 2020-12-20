@@ -3,6 +3,7 @@
 #include "../Engine/IApp.h"
 #include "../Engine/IRenderer.h"
 #include "../Engine/Log.h"
+#include <thread>
 
 ShaderModule* pVertexShader = nullptr;
 ShaderModule* pFragmentShader = nullptr;
@@ -22,7 +23,8 @@ const std::string resourcePath = {
 #endif
 };
 
-static float in_fragColor[4] = { 1.0f, 0.0f, 0.0f, 0.0f };
+static float in_fragColor[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
+static int fragColorUpdateIndex = 0;
 
 class App : public IApp
 {
@@ -63,7 +65,7 @@ public:
 			ppUniformBuffers[i] = new Buffer();
 			ppUniformBuffers[i]->desc = {
 				(uint64_t)sizeof(in_fragColor),
-				VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
+				VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
 				VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT,
 				(void*)(in_fragColor)
 			};
@@ -79,7 +81,7 @@ public:
 					0,										// binding
 					VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,		// type
 					1,										// count
-					VK_PIPELINE_STAGE_VERTEX_SHADER_BIT,	// stage flag
+					VK_SHADER_STAGE_VERTEX_BIT,				// stage flag
 					nullptr									// Immutable Sampler
 				},
 				"UniformBufferObject"
@@ -184,39 +186,65 @@ public:
 	{
 		while (!WindowShouldClose())
 		{
-			uint32_t imageIndex = GetNextSwapchainImage(pRenderer);
-			if (imageIndex == -1)
+			if (pRenderer->window.minimized)
+			{
+				std::this_thread::sleep_for(std::chrono::milliseconds(1));
 				continue;
+			}
 
 			uint32_t currentFrame = pRenderer->currentFrame;
-			CommandBuffer* pCmd = cmdBfrs[currentFrame];
-			RenderTarget* pRenderTarget = pRenderer->swapchainRenderTargets[imageIndex];
+			
+			{
+				if (in_fragColor[fragColorUpdateIndex] <= 1.0f)
+				{
+					in_fragColor[fragColorUpdateIndex] += 0.001f;
+				}
+				else
+				{
+					in_fragColor[fragColorUpdateIndex] = 0.0f;
+					fragColorUpdateIndex = ++fragColorUpdateIndex % 3;
+				}
+				UpdateBuffer(pRenderer, ppUniformBuffers[currentFrame], in_fragColor, sizeof(in_fragColor));
+			}
 
-			BeginCommandBuffer(pCmd);
-			TransitionImageLayout(pCmd, pRenderTarget->pTexture, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
+			{
+				uint32_t imageIndex = GetNextSwapchainImage(pRenderer);
+				if (imageIndex == -1)
+				{
+					Unload();
+					Load();
+					continue;
+				}
 
-			LoadActionsDesc loadDesc;
-			VkClearValue clearColor = {};
-			clearColor.color.float32[0] = 0.5f;
-			clearColor.color.float32[1] = 0.2f;
-			clearColor.color.float32[2] = 0.2f;
-			clearColor.color.float32[3] = 1.0f;
-			loadDesc.clearColors.emplace_back(clearColor);
-			loadDesc.loadColorActions.emplace_back(VK_ATTACHMENT_LOAD_OP_CLEAR);
-			BindRenderTargets(pCmd, 1, &pRenderTarget, &loadDesc);
+				CommandBuffer* pCmd = cmdBfrs[currentFrame];
+				RenderTarget* pRenderTarget = pRenderer->swapchainRenderTargets[imageIndex];
 
-			SetViewport(pCmd, 0.0f, 0.0f, (float)pRenderTarget->pTexture->desc.width, (float)pRenderTarget->pTexture->desc.height, 1.0f, 1.0f);
-			SetScissors(pCmd, 0, 0, pRenderTarget->pTexture->desc.width, pRenderTarget->pTexture->desc.height);
-			BindDescriptorSet(pCmd, currentFrame, pDescriptorSet);
-			BindPipeline(pCmd, pPipeline);
-			Draw(pCmd, 3, 0);
+				BeginCommandBuffer(pCmd);
+				TransitionImageLayout(pCmd, pRenderTarget->pTexture, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
 
-			BindRenderTargets(pCmd, 0, nullptr);
-			TransitionImageLayout(pCmd, pRenderTarget->pTexture, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
-			EndCommandBuffer(pCmd);
+				LoadActionsDesc loadDesc;
+				VkClearValue clearColor = {};
+				clearColor.color.float32[0] = 0.5f;
+				clearColor.color.float32[1] = 0.2f;
+				clearColor.color.float32[2] = 0.2f;
+				clearColor.color.float32[3] = 1.0f;
+				loadDesc.clearColors.emplace_back(clearColor);
+				loadDesc.loadColorActions.emplace_back(VK_ATTACHMENT_LOAD_OP_CLEAR);
+				BindRenderTargets(pCmd, 1, &pRenderTarget, &loadDesc);
 
-			Submit(pCmd);
-			Present(pCmd);
+				SetViewport(pCmd, 0.0f, 0.0f, (float)pRenderTarget->pTexture->desc.width, (float)pRenderTarget->pTexture->desc.height, 1.0f, 1.0f);
+				SetScissors(pCmd, 0, 0, pRenderTarget->pTexture->desc.width, pRenderTarget->pTexture->desc.height);
+				BindDescriptorSet(pCmd, currentFrame, pDescriptorSet);
+				BindPipeline(pCmd, pPipeline);
+				Draw(pCmd, 3, 0);
+
+				BindRenderTargets(pCmd, 0, nullptr);
+				TransitionImageLayout(pCmd, pRenderTarget->pTexture, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
+				EndCommandBuffer(pCmd);
+
+				Submit(pCmd);
+				Present(pCmd);
+			}
 		}
 	}
 

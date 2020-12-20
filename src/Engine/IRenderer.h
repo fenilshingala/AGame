@@ -329,6 +329,7 @@ void TransitionImageLayout(CommandBuffer* a_pCommandBuffer, Texture* a_pTexture,
 
 void CreateBuffer(Renderer* a_pRenderer, Buffer** a_ppBuffer);
 void DestroyBuffer(Renderer* a_pRenderer, Buffer** a_ppBuffer);
+void UpdateBuffer(Renderer* a_pRenderer, Buffer* a_pBuffer, void* a_pData, uint64_t a_uSize);
 
 void CreateRenderPass(Renderer* a_pRenderer, LoadActionsDesc* pLoadActions, RenderPass** a_ppRenderPass);
 void DestroyRenderPass(Renderer* a_pRenderer, RenderPass** a_ppRenderPass);
