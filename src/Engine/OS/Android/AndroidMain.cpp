@@ -15,15 +15,36 @@ void handle_cmd(android_app* app, int32_t cmd)
 {
     switch (cmd) {
     case APP_CMD_INIT_WINDOW:
+    {
         // The window is being shown, get it ready.
         pNativeWindow = pAndroidApp->window;
         ready = true;
         break;
+    }
     case APP_CMD_TERM_WINDOW:
+    {
         // The window is being hidden or closed, clean it up.
+        pWindow->pApp->Unload();
+        ready = false;
         break;
+    }
+    case APP_CMD_WINDOW_RESIZED:
+    {
+        int32_t width = ANativeWindow_getWidth(app->window);
+        int32_t height = ANativeWindow_getHeight(app->window);
+        if (pWindow->width != width || pWindow->height != height)
+        {
+            pWindow->width = width;
+            pWindow->height = height;
+            pWindow->pApp->Unload();
+            pWindow->pApp->Load();
+        }
+        break;
+    }
     default:
+    {
         break;
+    }
     }
 }
 
@@ -45,7 +66,7 @@ void AndroidMain(struct android_app* a_pAndroidApp, IApp* a_pApp)
 {
     ::pAndroidApp = a_pAndroidApp;
     a_pAndroidApp->onAppCmd = handle_cmd;
-
+    
     InitFileSystem(a_pAndroidApp);
 
     int events;

@@ -33,22 +33,26 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 	{
 	case WM_DESTROY:
 	case WM_CLOSE:
+	{
 		PostQuitMessage(0);
 		break;
-
+	}
 	case WM_ENTERSIZEMOVE:
+	{	
 		windowIsResizing = true;
 		break;
-
+	}
 	case WM_EXITSIZEMOVE:
+	{
 		windowIsResizing = false;
 		if (!pWindow->fullScreen)
 		{
 			UpdateWindowDimensions(pWindow);
 		}
 		break;
-	
+	}
 	case WM_SIZE:
+	{
 		switch (wParam)
 		{
 		case SIZE_RESTORED:
@@ -65,8 +69,11 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 		default:
 			break;
 		}
+	}
 	default:
+	{
 		break;
+	}
 	}
 
 	if (pWindow->pApp && !windowIsResizing && needsResize)

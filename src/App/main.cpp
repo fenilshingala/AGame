@@ -39,9 +39,8 @@ public:
 		pRenderer->window.pApp = this;
 		//pRenderer->window.width = 800;
 		//pRenderer->window.height = 600;
-#if defined(_WIN32)
 		pRenderer->maxInFlightFrames = 3;
-#endif
+		
 		InitRenderer(&pRenderer);
 		
 		const uint32_t cmdBfrCnt = pRenderer->maxInFlightFrames;

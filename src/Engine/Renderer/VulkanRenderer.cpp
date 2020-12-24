@@ -2133,9 +2133,11 @@ void Present(CommandBuffer* a_pCommandBuffer)
 	presentInfo.pResults = nullptr; // Optional
 
 	VkResult result = vkQueuePresentKHR(pRenderer->presentQueue, &presentInfo);
-	LOG_IF( (result == VK_SUCCESS), LogSeverity::ERR,"failed to present swap chain image!");
+	LOG_IF( (result == VK_SUCCESS || result == VK_SUBOPTIMAL_KHR), LogSeverity::ERR,"failed to present swap chain image!");
 
-	if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR) //|| isResized || VulkanHelper::pCurrentVulkanSettings->ppWinDesc->minimized)
+	// Note:
+	// On android, using IDENTITY preTransform gives VK_SUBOPTIMAL_KHR result on present, so the check is removed here
+	if (result == VK_ERROR_OUT_OF_DATE_KHR)
 	{
 		a_pCommandBuffer->pRenderer->window.pApp->Unload();
 		a_pCommandBuffer->pRenderer->window.pApp->Load();
