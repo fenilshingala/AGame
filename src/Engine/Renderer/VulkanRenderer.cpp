@@ -1022,7 +1022,7 @@ void CreateBuffer(Renderer* a_pRenderer, Buffer** a_ppBuffer)
 			// push data to staging buffer
 			void* data;
 			vkMapMemory(a_pRenderer->device, pStagingBuffer->bufferMemory, 0, pStagingBuffer->desc.bufferSize, 0, &data);
-			memcpy(data, pStagingBuffer->desc.pData, (size_t)pStagingBuffer->desc.bufferSize);
+			memcpy(data, pBuffer->desc.pData, (size_t)pStagingBuffer->desc.bufferSize);
 			vkUnmapMemory(a_pRenderer->device, pStagingBuffer->bufferMemory);
 
 			// copy from staging to device local buffer
@@ -1439,23 +1439,20 @@ void CreateGraphicsPipeline(Renderer* a_pRenderer, Pipeline** a_ppPipeline)
 
 	// Input Bindings and Attributes
 	VkPipelineVertexInputStateCreateInfo vertexInputStateCreateInfo = {};
+	std::vector<VkVertexInputBindingDescription> vertexInputBindings = {};
+	std::vector<VkVertexInputAttributeDescription> vertexInputAttributes(pPipeline->desc.attribs.size());
 	{
 		std::sort(pPipeline->desc.attribs.begin(), pPipeline->desc.attribs.end(), [](VertexAttribute a, VertexAttribute b) { return a.binding < b.binding; });
 
-		std::vector<VkVertexInputBindingDescription> vertexInputBindings;
-		std::vector<VkVertexInputAttributeDescription> vertexInputAttributes(pPipeline->desc.attribs.size());
-
+		uint32_t current_binding = -1;
 		for (uint32_t i = 0; i < pPipeline->desc.attribs.size(); ++i)
 		{
-			static uint32_t binding_count = 0;
-			static uint32_t current_binding = 0;
 
 			if (current_binding != pPipeline->desc.attribs[i].binding)
 			{
-				++binding_count;
 				current_binding = pPipeline->desc.attribs[i].binding;
 
-				VkVertexInputBindingDescription bindingDesc;
+				VkVertexInputBindingDescription bindingDesc = {};
 				bindingDesc.binding = current_binding;
 				bindingDesc.inputRate = pPipeline->desc.attribs[i].inputRate;
 				vertexInputBindings.emplace_back(bindingDesc);
@@ -2073,12 +2070,43 @@ void BindPipeline(CommandBuffer* a_pCommandBuffer, Pipeline* a_pPipeline)
 	vkCmdBindPipeline(a_pCommandBuffer->commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, a_pPipeline->pipeline);
 }
 
+void BindVertexBuffers(CommandBuffer* a_pCommandBuffer, uint32_t a_uCount, Buffer** a_ppBuffers)
+{
+	LOG_IF(a_pCommandBuffer, LogSeverity::ERR, "a_pCommandBuffer is NULL");
+	LOG_IF(a_ppBuffers, LogSeverity::ERR, "Value at a_ppBuffers is NULL");
+
+	VkBuffer buffers[64];
+	VkDeviceSize offsets[64];
+	for (uint32_t i = 0; i < a_uCount; ++i)
+	{
+		buffers[i] = a_ppBuffers[i]->buffer;
+		offsets[i] = 0;
+	}
+	vkCmdBindVertexBuffers(a_pCommandBuffer->commandBuffer, 0, a_uCount, buffers, offsets);
+}
+
+void BindIndexBuffer(CommandBuffer* a_pCommandBuffer, Buffer* a_pBuffer, VkIndexType a_IndexType)
+{
+	LOG_IF(a_pCommandBuffer, LogSeverity::ERR, "a_pCommandBuffer is NULL");
+	LOG_IF(a_pBuffer, LogSeverity::ERR, "a_pBuffer is NULL");
+
+	vkCmdBindIndexBuffer(a_pCommandBuffer->commandBuffer, a_pBuffer->buffer, 0, a_IndexType);
+}
+
 void Draw(CommandBuffer* a_pCommandBuffer, uint32_t a_uVertexCount, uint32_t a_uFirstVertex)
 {
 	LOG_IF(a_pCommandBuffer, LogSeverity::ERR, "a_pCommandBuffer is NULL");
 	LOG_IF(a_pCommandBuffer->commandBuffer != VK_NULL_HANDLE, LogSeverity::ERR, "command buffer is VK_NULL_HANDLE");
 	
 	vkCmdDraw(a_pCommandBuffer->commandBuffer, a_uVertexCount, 1, a_uFirstVertex, 0);
+}
+
+void DrawIndexed(CommandBuffer* a_pCommandBuffer, uint32_t a_uIndicesCount, uint32_t a_uFirstIndex, uint32_t a_uFirstVertex)
+{
+	LOG_IF(a_pCommandBuffer, LogSeverity::ERR, "a_pCommandBuffer is NULL");
+	LOG_IF(a_pCommandBuffer->commandBuffer != VK_NULL_HANDLE, LogSeverity::ERR, "command buffer is VK_NULL_HANDLE");
+
+	vkCmdDrawIndexed(a_pCommandBuffer->commandBuffer, a_uIndicesCount, 1, a_uFirstIndex, a_uFirstVertex, 0);
 }
 
 void Submit(CommandBuffer* a_pCommandBuffer)

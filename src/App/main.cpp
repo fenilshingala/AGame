@@ -7,6 +7,8 @@
 
 ShaderModule* pVertexShader = nullptr;
 ShaderModule* pFragmentShader = nullptr;
+Buffer* pVertexBuffer = nullptr;
+Buffer* pIndexBuffer = nullptr;
 Buffer** ppUniformBuffers = nullptr;
 ResourceDescriptor* pResDesc = nullptr;
 DescriptorSet* pDescriptorSet = nullptr;
@@ -21,6 +23,34 @@ const std::string resourcePath = {
 #if defined(__ANDROID_API__)
 	""
 #endif
+};
+
+struct float3
+{
+	float x;
+	float y;
+	float z;
+
+	float3() :
+		x(0), y(0), z(0)
+	{}
+
+	float3(float a, float b, float c) :
+		x(a), y(b), z(c)
+	{}
+};
+
+struct Vertex {
+	float3 pos;
+};
+const std::vector<Vertex> vertices = {
+	{{-0.5f, -0.5f, 0.0f}},
+	{{0.5f, -0.5f, 0.0f}},
+	{{0.5f, 0.5f, 0.0f}},
+	{{-0.5f, 0.5f, 0.0f}}
+};
+const std::vector<uint16_t> indices = {
+	0, 1, 2, 2, 3, 0
 };
 
 static float in_fragColor[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
@@ -57,6 +87,24 @@ public:
 		pFragmentShader = new ShaderModule(VK_SHADER_STAGE_FRAGMENT_BIT);
 		CreateShaderModule(pRenderer, (resourcePath + "Shaders/basic.vert").c_str(), &pVertexShader);
 		CreateShaderModule(pRenderer, (resourcePath + "Shaders/basic.frag").c_str(), &pFragmentShader);
+
+		pVertexBuffer = new Buffer();
+		pVertexBuffer->desc = {
+			(uint64_t)(vertices.size() * sizeof(Vertex)),
+			VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
+			VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+			(void*)(vertices.data())
+		};
+		CreateBuffer(pRenderer, &pVertexBuffer);
+
+		pIndexBuffer = new Buffer();
+		pIndexBuffer->desc = {
+			(uint64_t)sizeof(indices),
+			VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
+			VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+			(void*)(indices.data())
+		};
+		CreateBuffer(pRenderer, &pIndexBuffer);
 
 		ppUniformBuffers = (Buffer**)malloc(pRenderer->maxInFlightFrames * sizeof(Buffer*));
 		for (uint32_t i = 0; i < pRenderer->maxInFlightFrames; ++i)
@@ -123,6 +171,12 @@ public:
 		}
 		free(ppUniformBuffers);
 
+		DestroyBuffer(pRenderer, &pVertexBuffer);
+		delete pVertexBuffer;
+		
+		DestroyBuffer(pRenderer, &pIndexBuffer);
+		delete pIndexBuffer;
+
 		DestroyShaderModule(pRenderer, &pFragmentShader);
 		delete pFragmentShader;
 		DestroyShaderModule(pRenderer, &pVertexShader);
@@ -150,7 +204,18 @@ public:
 		};
 		
 		pPipeline->desc.shaders = shaders;
-		//pPipeline->desc.attribs;
+
+		std::vector<VertexAttribute> attribs;
+		attribs.push_back({
+			0,								// binding
+			sizeof(float3),					// stride
+			VK_VERTEX_INPUT_RATE_VERTEX,	// inputrate
+			0,								// location
+			VK_FORMAT_R32G32B32_SFLOAT,		// format
+			offsetof(Vertex, pos)			// offset
+		});
+
+		pPipeline->desc.attribs = attribs;
 		pPipeline->desc.colorFormats.emplace_back(pRenderer->swapchainRenderTargets[0]->pTexture->desc.format);
 		pPipeline->desc.cullMode = VK_CULL_MODE_BACK_BIT;
 		//pPipeline->desc.depthBias = 0.0f;
@@ -235,7 +300,9 @@ public:
 				SetScissors(pCmd, 0, 0, pRenderTarget->pTexture->desc.width, pRenderTarget->pTexture->desc.height);
 				BindDescriptorSet(pCmd, currentFrame, pDescriptorSet);
 				BindPipeline(pCmd, pPipeline);
-				Draw(pCmd, 3, 0);
+				BindVertexBuffers(pCmd, 1, &pVertexBuffer);
+				BindIndexBuffer(pCmd, pIndexBuffer, VK_INDEX_TYPE_UINT16);
+				DrawIndexed(pCmd, static_cast<uint32_t>(indices.size()), 0, 0);
 
 				BindRenderTargets(pCmd, 0, nullptr);
 				TransitionImageLayout(pCmd, pRenderTarget->pTexture, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);

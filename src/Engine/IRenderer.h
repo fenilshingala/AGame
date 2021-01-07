@@ -228,6 +228,10 @@ struct VertexAttribute
 	VertexAttribute() :
 		binding(0), stride(0), inputRate(VK_VERTEX_INPUT_RATE_VERTEX), location(0), format(VK_FORMAT_UNDEFINED), offset(0)
 	{}
+
+	VertexAttribute(uint32_t a_uBinding, uint32_t a_uStride, VkVertexInputRate a_VertexInputRate, uint32_t a_uLocation, VkFormat a_Format, uint32_t a_uOffset) :
+		binding(a_uBinding), stride(a_uStride), inputRate(a_VertexInputRate), location(a_uLocation), format(a_Format), offset(a_uOffset)
+	{}
 };
 
 struct ShaderModule
@@ -360,6 +364,9 @@ void SetViewport(CommandBuffer* a_pCommandBuffer, float a_fX, float a_fY, float 
 void SetScissors(CommandBuffer* a_pCommandBuffer, uint32_t a_uX, uint32_t a_uY, uint32_t a_uWidth, uint32_t a_uHeight);
 void BindPipeline(CommandBuffer* a_pCommandBuffer, Pipeline* a_pPipeline);
 void BindDescriptorSet(CommandBuffer* a_pCommandBuffer, uint32_t a_uIndex, DescriptorSet* a_pDescriptorSet);
+void BindVertexBuffers(CommandBuffer* a_pCommandBuffer, uint32_t a_uCount, Buffer** a_ppBuffers);
+void BindIndexBuffer(CommandBuffer* a_pCommandBuffer, Buffer* a_pBuffer, VkIndexType a_IndexType);
 void Draw(CommandBuffer* a_pCommandBuffer, uint32_t a_uVertexCount, uint32_t a_uFirstVertex);
+void DrawIndexed(CommandBuffer* a_pCommandBuffer, uint32_t a_uIndicesCount, uint32_t a_uFirstIndex, uint32_t a_uFirstVertex);
 void Submit(CommandBuffer* a_pCommandBuffer);
 void Present(CommandBuffer* a_pCommandBuffer);
