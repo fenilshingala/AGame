@@ -22,23 +22,49 @@ struct TextureDesc
 	VkMemoryPropertyFlags	properties;
 	VkImageAspectFlagBits	aspectBits;
 	VkSampleCountFlagBits	sampleCount;
+	std::string				filePath;
 
 	TextureDesc() :
 		width(0), height(0), format(VK_FORMAT_UNDEFINED), tiling(VK_IMAGE_TILING_OPTIMAL), usage(VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT),
-		properties(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT), aspectBits(VK_IMAGE_ASPECT_COLOR_BIT), sampleCount(VK_SAMPLE_COUNT_1_BIT)
+		properties(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT), aspectBits(VK_IMAGE_ASPECT_COLOR_BIT), sampleCount(VK_SAMPLE_COUNT_1_BIT), filePath()
 	{}
 };
 
 struct Texture
 {
-	TextureDesc		desc;
-	VkImage			image;
-	VkDeviceMemory	imageMemory;
-	VkImageView		imageView;
-
+	TextureDesc				desc;
+	VkImage					image;
+	VkDeviceMemory			imageMemory;
+	VkImageView				imageView;
+	
 	Texture() :
 		desc(), image(VK_NULL_HANDLE), imageMemory(VK_NULL_HANDLE), imageView(VK_NULL_HANDLE)
 	{}
+};
+
+struct SamplerDesc
+{
+	VkFilter				minFilter;
+	VkFilter				magFilter;
+	VkSamplerMipmapMode		mipMapMode;
+	VkSamplerAddressMode	addressModeU;
+	VkSamplerAddressMode	addressModeV;
+	VkSamplerAddressMode	addressModeW;
+	float					mipLoadBias;
+	float					maxAnisotropy;
+	VkCompareOp				compareOp;
+
+	SamplerDesc() :
+		minFilter(VK_FILTER_LINEAR), magFilter(VK_FILTER_LINEAR), mipMapMode(VK_SAMPLER_MIPMAP_MODE_NEAREST),
+		addressModeU(VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE), addressModeV(VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE), addressModeW(VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE),
+		mipLoadBias(0.0f), maxAnisotropy(0.0f), compareOp(VK_COMPARE_OP_NEVER)
+	{}
+};
+
+struct Sampler
+{
+	SamplerDesc desc;
+	VkSampler	sampler;
 };
 
 struct RenderTarget
@@ -280,6 +306,16 @@ struct Pipeline
 	{}
 };
 
+struct DefaultResources
+{
+	Buffer	defaultBuffer;
+	Texture defaultImage;
+
+	DefaultResources():
+		defaultBuffer(), defaultImage()
+	{}
+};
+
 struct Renderer
 {
 	Window window;
@@ -307,6 +343,8 @@ struct Renderer
 	VkCommandPool		commandPool;
 	VkDescriptorPool	descriptorPool;
 
+	DefaultResources	defaultResources;
+
 	// syncronization objects
 	std::vector<VkSemaphore>	imageAvailableSemaphores;
 	std::vector<VkSemaphore>	renderFinishedSemaphores;
@@ -330,6 +368,9 @@ void WaitDeviceIdle(Renderer* a_pRenderer);
 void CreateTexture(Renderer* a_pRenderer, Texture** a_ppTexture);
 void DestroyTexture(Renderer* a_pRenderer, Texture** a_ppTexture);
 void TransitionImageLayout(CommandBuffer* a_pCommandBuffer, Texture* a_pTexture, VkImageLayout oldLayout, VkImageLayout newLayout);
+
+void CreateSampler(Renderer* a_pRenderer, Sampler** a_ppSampler);
+void DestroySampler(Renderer* a_pRenderer, Sampler** a_ppSampler);
 
 void CreateBuffer(Renderer* a_pRenderer, Buffer** a_ppBuffer);
 void DestroyBuffer(Renderer* a_pRenderer, Buffer** a_ppBuffer);

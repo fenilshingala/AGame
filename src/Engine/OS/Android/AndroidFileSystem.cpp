@@ -22,7 +22,7 @@ FileHandle OpenFile(const char* a_sFilename, const char* a_sMode)
 
 	AAsset* asset = AAssetManager_open(assetManager, a_sFilename, AASSET_MODE_BUFFER);
 	LOG_IF(asset, LogSeverity::ERR, "Could not open file %s", a_sFilename);
-
+	
 	return asset;
 }
 
@@ -32,13 +32,13 @@ void CloseFile(FileHandle a_Handle)
 	AAsset_close((AAsset*)a_Handle);
 }
 
-void FileRead(FileHandle a_Handle, char** a_ppBuffer, uint32_t a_uLength)
+int FileRead(FileHandle a_Handle, char** a_ppBuffer, uint32_t a_uLength)
 {
 	LOG_IF(a_Handle, LogSeverity::ERR, "File Handle is NULL");
 	LOG_IF(*a_ppBuffer, LogSeverity::ERR, "Value at buffer is NULL");
 
 	AAsset* asset = (AAsset*)a_Handle;
-	LOG_IF(AAsset_read(asset, (*a_ppBuffer), a_uLength) >= 0, LogSeverity::ERR, "File read error");
+	return AAsset_read(asset, (*a_ppBuffer), a_uLength);
 }
 
 uint32_t FileSize(FileHandle a_Handle)
@@ -79,6 +79,11 @@ long FileTell(FileHandle a_Handle)
 void FileSeek(FileHandle a_Handle, long a_lOffset, int a_iOrigin)
 {
 	LOG_IF(a_Handle, LogSeverity::ERR, "File Handle is NULL");
-	AAsset* asset = (AAsset*)a_Handle;
-	AAsset_seek(asset, a_lOffset, a_iOrigin);
+	AAsset_seek((AAsset*)a_Handle, a_lOffset, a_iOrigin);
+}
+
+int IsEndOfFile(FileHandle a_Handle)
+{
+	LOG_IF(a_Handle, LogSeverity::ERR, "File Handle is NULL");
+	return (AAsset_getRemainingLength((AAsset*)a_Handle) > 0 ? 1 : 0);
 }

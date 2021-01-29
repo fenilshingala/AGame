@@ -55,11 +55,11 @@ void CloseFile(FileHandle a_Handle)
 	fclose((FILE*)a_Handle);
 }
 
-void FileRead(FileHandle a_Handle, char** a_ppBuffer, uint32_t a_uLength)
+int FileRead(FileHandle a_Handle, char** a_ppBuffer, uint32_t a_uLength)
 {
 	LOG_IF(a_Handle, LogSeverity::ERR, "File Handle is NULL");
 	LOG_IF(*a_ppBuffer, LogSeverity::ERR, "Value at buffer is NULL");
-	fread(*a_ppBuffer, 1, a_uLength, (FILE*)a_Handle);
+	return (int)fread(*a_ppBuffer, 1, a_uLength, (FILE*)a_Handle);
 }
 
 uint32_t FileSize(FileHandle a_Handle)
@@ -89,4 +89,10 @@ void FileSeek(FileHandle a_Handle, long a_lOffset, int a_iOrigin)
 {
 	LOG_IF(a_Handle, LogSeverity::ERR, "File Handle is NULL");
 	fseek((FILE*)a_Handle, a_lOffset, a_iOrigin);
+}
+
+int IsEndOfFile(FileHandle a_Handle)
+{
+	LOG_IF(a_Handle, LogSeverity::ERR, "File Handle is NULL");
+	return feof((FILE*)a_Handle);
 }

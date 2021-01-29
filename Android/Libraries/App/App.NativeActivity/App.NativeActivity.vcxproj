@@ -75,7 +75,8 @@
       </IgnoreSpecificDefaultLibraries>
     </Link>
     <PostBuildEvent>
-      <Command>$(systemroot)\System32\xcopy $(SolutionDir)..\src\App\Resources\Shaders\*.* $(OutDir)Package\$(RootNamespace)\assets\Shaders\ /y</Command>
+      <Command>$(systemroot)\System32\xcopy $(SolutionDir)..\src\App\Resources\Shaders\*.* $(OutDir)Package\$(RootNamespace)\assets\Shaders\ /y
+$(systemroot)\System32\xcopy $(SolutionDir)..\src\App\Resources\Textures\*.* $(OutDir)Package\$(RootNamespace)\assets\Textures\ /y</Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|ARM64'">
@@ -90,7 +91,8 @@
       <AdditionalLibraryDirectories>$(OutDir);$(VS_Ndkroot)\sources\third_party\shaderc\libs\$(UseOfStl)\$(TargetArchAbi);$(LibraryPath);%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
     </Link>
     <PostBuildEvent>
-      <Command>$(systemroot)\System32\xcopy $(SolutionDir)..\src\App\Resources\Shaders\*.* $(OutDir)Package\$(RootNamespace)\assets\Shaders\ /y</Command>
+      <Command>$(systemroot)\System32\xcopy $(SolutionDir)..\src\App\Resources\Shaders\*.* $(OutDir)Package\$(RootNamespace)\assets\Shaders\ /y
+$(systemroot)\System32\xcopy $(SolutionDir)..\src\App\Resources\Textures\*.* $(OutDir)Package\$(RootNamespace)\assets\Textures\ /y</Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

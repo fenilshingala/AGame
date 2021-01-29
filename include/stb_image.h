@@ -348,6 +348,8 @@ extern "C" {
 #endif
 #endif
 
+#include "../src/Engine/OS/FileSystem.h"
+
 //////////////////////////////////////////////////////////////////////////////
 //
 // PRIMARY API - works on images of any type
@@ -374,7 +376,7 @@ STBIDEF stbi_uc *stbi_load_from_callbacks(stbi_io_callbacks const *clbk  , void 
 
 #ifndef STBI_NO_STDIO
 STBIDEF stbi_uc *stbi_load            (char const *filename, int *x, int *y, int *channels_in_file, int desired_channels);
-STBIDEF stbi_uc *stbi_load_from_file  (FILE *f, int *x, int *y, int *channels_in_file, int desired_channels);
+STBIDEF stbi_uc *stbi_load_from_file  (FileHandle f, int *x, int *y, int *channels_in_file, int desired_channels);
 // for stbi_load_from_file, file pointer is left pointing immediately after image
 #endif
 
@@ -764,17 +766,20 @@ static void stbi__start_callbacks(stbi__context *s, stbi_io_callbacks *c, void *
 
 static int stbi__stdio_read(void *user, char *data, int size)
 {
-   return (int) fread(data,1,size,(FILE*) user);
+   //return (int) fread(data,1,size,(FILE*) user);
+   return (int) FileRead((FileHandle)user, &data, size);
 }
 
 static void stbi__stdio_skip(void *user, int n)
 {
-   fseek((FILE*) user, n, SEEK_CUR);
+   //fseek((FILE*) user, n, SEEK_CUR);
+   FileSeek((FileHandle)user, n, SEEK_CUR);
 }
 
 static int stbi__stdio_eof(void *user)
 {
-   return feof((FILE*) user);
+   //return feof((FILE*) user);
+   return IsEndOfFile((FileHandle)user);
 }
 
 static stbi_io_callbacks stbi__stdio_callbacks =
@@ -784,7 +789,7 @@ static stbi_io_callbacks stbi__stdio_callbacks =
    stbi__stdio_eof,
 };
 
-static void stbi__start_file(stbi__context *s, FILE *f)
+static void stbi__start_file(stbi__context *s, FileHandle f)
 {
    stbi__start_callbacks(s, &stbi__stdio_callbacks, (void *) f);
 }
@@ -1220,23 +1225,26 @@ static FILE *stbi__fopen(char const *filename, char const *mode)
 
 STBIDEF stbi_uc *stbi_load(char const *filename, int *x, int *y, int *comp, int req_comp)
 {
-   FILE *f = stbi__fopen(filename, "rb");
+   //FILE *f = stbi__fopen(filename, "rb");
+   FileHandle handle = OpenFile(filename, "rb");
    unsigned char *result;
-   if (!f) return stbi__errpuc("can't fopen", "Unable to open file");
-   result = stbi_load_from_file(f,x,y,comp,req_comp);
-   fclose(f);
+   //if (!f) return stbi__errpuc("can't fopen", "Unable to open file");
+   result = stbi_load_from_file(handle,x,y,comp,req_comp);
+   //fclose(f);
+   CloseFile(handle);
    return result;
 }
 
-STBIDEF stbi_uc *stbi_load_from_file(FILE *f, int *x, int *y, int *comp, int req_comp)
+STBIDEF stbi_uc *stbi_load_from_file(FileHandle handle, int *x, int *y, int *comp, int req_comp)
 {
    unsigned char *result;
    stbi__context s;
-   stbi__start_file(&s,f);
+   stbi__start_file(&s,handle);
    result = stbi__load_and_postprocess_8bit(&s,x,y,comp,req_comp);
    if (result) {
       // need to 'unget' all the characters in the IO buffer
-      fseek(f, - (int) (s.img_buffer_end - s.img_buffer), SEEK_CUR);
+      //fseek(f, - (int) (s.img_buffer_end - s.img_buffer), SEEK_CUR);
+      FileSeek(handle, -(int)(s.img_buffer_end - s.img_buffer), SEEK_CUR);
    }
    return result;
 }

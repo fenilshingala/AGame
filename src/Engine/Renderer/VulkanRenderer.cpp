@@ -2,6 +2,8 @@
 #include "../IApp.h"
 #include "../Log.h"
 #include "../OS/FileSystem.h"
+#define STB_IMAGE_IMPLEMENTATION
+#include "../../../include/stb_image.h"
 
 #include <unordered_map>
 #include <unordered_set>
@@ -27,10 +29,14 @@ void CreateCommandPool(Renderer** a_ppRenderer);
 void CreateDescriptorPool(Renderer** a_ppRenderer);
 void CreateSyncObjects(Renderer** a_ppRenderer);
 
+void InitializeDefaultResources(Renderer* a_pRenderer);
+void DestroyDefaultResources(Renderer* a_pRenderer);
+
 void BeginSingleTimeCommands(Renderer* a_pRenderer, CommandBuffer* a_pCommandBuffer);
 void EndSingleTimeCommands(Renderer* a_pRenderer, CommandBuffer* a_pCommandBuffer);
 
 VkImageView CreateImageView(Renderer* pRenderer, VkImage image, VkFormat format, VkImageAspectFlags aspectFlags);
+void CreateBufferUtil(Renderer* a_pRenderer, Buffer** a_ppBuffer);
 
 static std::unordered_map<uint32_t, VkRenderPass>	renderPasses;
 static std::unordered_map<uint32_t, VkFramebuffer>	frameBuffers;
@@ -46,12 +52,15 @@ void InitRenderer(Renderer** a_ppRenderer)
 	CreateCommandPool(a_ppRenderer);
 	CreateDescriptorPool(a_ppRenderer);
 	CreateSyncObjects(a_ppRenderer);
+	InitializeDefaultResources(*a_ppRenderer);
 }
 
 void ExitRenderer(Renderer** a_ppRenderer)
 {
 	LOG_IF(*a_ppRenderer, LogSeverity::ERR, "Value at a_ppRenderer is NULL");
 	Renderer* pRenderer = *a_ppRenderer;
+
+	DestroyDefaultResources(*a_ppRenderer);
 
 	std::unordered_map<uint32_t, VkRenderPass>::iterator rp_itr = renderPasses.begin();
 	for(; rp_itr != renderPasses.end(); ++rp_itr)
@@ -88,6 +97,46 @@ void ExitRenderer(Renderer** a_ppRenderer)
 }
 
 #pragma region VULKAN_IMPLEMENTATION
+
+void InitializeDefaultResources(Renderer* a_pRenderer)
+{
+	LOG_IF(a_pRenderer, LogSeverity::ERR, "a_pRenderer is NULL");
+
+	Buffer* pBuffer = &(a_pRenderer->defaultResources.defaultBuffer);
+	pBuffer->desc.bufferSize = (uint64_t)sizeof(uint32_t);
+	pBuffer->desc.bufferUsageFlags = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT;
+	pBuffer->desc.memoryPropertyFlags = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
+	CreateBufferUtil(a_pRenderer, &pBuffer);
+
+	Texture* pTexture = &(a_pRenderer->defaultResources.defaultImage);
+	pTexture->desc.format = VK_FORMAT_R8G8B8A8_SRGB;
+	pTexture->desc.tiling = VK_IMAGE_TILING_OPTIMAL;
+	pTexture->desc.sampleCount = VK_SAMPLE_COUNT_1_BIT;
+	pTexture->desc.properties = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
+	pTexture->desc.usage = VK_IMAGE_USAGE_SAMPLED_BIT;
+	pTexture->desc.aspectBits = VK_IMAGE_ASPECT_COLOR_BIT;
+	pTexture->desc.width = 2;
+	pTexture->desc.height = 2;
+	CreateTexture(a_pRenderer, &pTexture);
+
+	{
+		CommandBuffer cmdBfr;
+		BeginSingleTimeCommands(a_pRenderer, &cmdBfr);
+		TransitionImageLayout(&cmdBfr, pTexture, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL);
+		EndSingleTimeCommands(a_pRenderer, &cmdBfr);
+	}
+}
+
+void DestroyDefaultResources(Renderer* a_pRenderer)
+{
+	LOG_IF(a_pRenderer, LogSeverity::ERR, "a_pRenderer is NULL");
+
+	Buffer* pBuffer = &(a_pRenderer->defaultResources.defaultBuffer);
+	DestroyBuffer(a_pRenderer, &pBuffer);
+
+	Texture* pTexture = &(a_pRenderer->defaultResources.defaultImage);
+	DestroyTexture(a_pRenderer, &pTexture);
+}
 
 #pragma region INSTANCE
 
@@ -726,6 +775,40 @@ void EndSingleTimeCommands(Renderer* a_pRenderer, CommandBuffer* a_pCommandBuffe
 
 #pragma region TEXTURE
 
+void CopyBufferToImage(Renderer* a_pRenderer, VkBuffer buffer, VkImage image, uint32_t width, uint32_t height)
+{
+	CommandBuffer cmdBfr;
+	BeginSingleTimeCommands(a_pRenderer, &cmdBfr);
+
+	VkBufferImageCopy region = {};
+	region.bufferOffset = 0;
+	region.bufferRowLength = 0;
+	region.bufferImageHeight = 0;
+
+	region.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+	region.imageSubresource.mipLevel = 0;
+	region.imageSubresource.baseArrayLayer = 0;
+	region.imageSubresource.layerCount = 1;
+
+	region.imageOffset = { 0, 0, 0 };
+	region.imageExtent = {
+		width,
+		height,
+		1
+	};
+
+	vkCmdCopyBufferToImage(
+		cmdBfr.commandBuffer,
+		buffer,
+		image,
+		VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+		1,
+		&region
+	);
+
+	EndSingleTimeCommands(a_pRenderer, &cmdBfr);
+}
+
 uint32_t findMemoryType(Renderer* a_pRenderer, uint32_t typeFilter, VkMemoryPropertyFlags properties)
 {
 	LOG_IF(a_pRenderer, LogSeverity::ERR, "a_pRenderer is NULL");
@@ -766,14 +849,14 @@ VkImageView CreateImageView(Renderer* a_pRenderer, VkImage image, VkFormat forma
 	return imageView;
 }
 
-void CreateTexture(Renderer* a_pRenderer, Texture** a_ppTexture)
+void CreateTextureUtil(Renderer* a_pRenderer, Texture** a_ppTexture)
 {
 	LOG_IF(a_pRenderer, LogSeverity::ERR, "Value at a_pRenderer is NULL");
 	LOG_IF(a_ppTexture, LogSeverity::ERR, "Value at a_ppTexture is NULL");
 
 	Texture* pTexture = *a_ppTexture;
-	VkImage image;
-	VkDeviceMemory imageMemory;
+	VkImage image = {};
+	VkDeviceMemory imageMemory = {};
 
 	VkImageCreateInfo imageInfo = {};
 	imageInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
@@ -789,7 +872,6 @@ void CreateTexture(Renderer* a_pRenderer, Texture** a_ppTexture)
 	imageInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
 	imageInfo.usage = pTexture->desc.usage;
 	imageInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-	imageInfo.samples = VK_SAMPLE_COUNT_1_BIT;
 	imageInfo.flags = 0; // Optional
 
 	LOG_IF((vkCreateImage(a_pRenderer->device, &imageInfo, nullptr, &image) == VK_SUCCESS), LogSeverity::ERR, "failed to create image!");
@@ -802,13 +884,68 @@ void CreateTexture(Renderer* a_pRenderer, Texture** a_ppTexture)
 	allocInfo.allocationSize = memRequirements.size;
 	allocInfo.memoryTypeIndex = findMemoryType(a_pRenderer, memRequirements.memoryTypeBits, pTexture->desc.properties);
 
-	LOG_IF((vkAllocateMemory(a_pRenderer->device, &allocInfo, nullptr, &imageMemory) != VK_SUCCESS), LogSeverity::ERR, "failed to allocate image memory!");
-
+	LOG_IF((vkAllocateMemory(a_pRenderer->device, &allocInfo, nullptr, &imageMemory) == VK_SUCCESS), LogSeverity::ERR, "failed to allocate image memory!");
 	vkBindImageMemory(a_pRenderer->device, image, imageMemory, 0);
 
 	pTexture->image = image;
 	pTexture->imageMemory = imageMemory;
 	pTexture->imageView = CreateImageView(a_pRenderer, image, pTexture->desc.format, pTexture->desc.aspectBits);
+}
+
+void CreateTexture(Renderer* a_pRenderer, Texture** a_ppTexture)
+{
+	LOG_IF(a_pRenderer, LogSeverity::ERR, "Value at a_pRenderer is NULL");
+	LOG_IF(a_ppTexture, LogSeverity::ERR, "Value at a_ppTexture is NULL");
+	Texture* pTexture = *a_ppTexture;
+
+	if (pTexture->desc.filePath.empty())
+	{
+		LOG_IF((*a_ppTexture)->desc.width != 0 || (*a_ppTexture)->desc.height != 0, LogSeverity::ERR, "Texture resolution can't be 0");
+		CreateTextureUtil(a_pRenderer, a_ppTexture);
+	}
+	else
+	{
+		int texWidth, texHeight, texChannels;
+		stbi_uc* pixels = stbi_load(pTexture->desc.filePath.c_str(), &texWidth, &texHeight, &texChannels, STBI_rgb_alpha);
+		LOG_IF(pixels, LogSeverity::ERR, "failed to load texture image!");
+		VkDeviceSize imageSize = texWidth * texHeight * 4;
+
+		Buffer* pStagingBuffer = new Buffer();
+		pStagingBuffer->desc.bufferSize = imageSize;
+		pStagingBuffer->desc.bufferUsageFlags = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
+		pStagingBuffer->desc.memoryPropertyFlags = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
+		CreateBufferUtil(a_pRenderer, &pStagingBuffer);
+
+		void* data;
+		vkMapMemory(a_pRenderer->device, pStagingBuffer->bufferMemory, 0, imageSize, 0, &data);
+		memcpy(data, pixels, static_cast<size_t>(imageSize));
+		vkUnmapMemory(a_pRenderer->device, pStagingBuffer->bufferMemory);
+
+		stbi_image_free(pixels);
+
+		pTexture->desc.width = texWidth;
+		pTexture->desc.height = texHeight;
+		CreateTextureUtil(a_pRenderer, a_ppTexture);
+
+		{
+			CommandBuffer cmdBfr;
+			BeginSingleTimeCommands(a_pRenderer, &cmdBfr);
+			TransitionImageLayout(&cmdBfr, pTexture, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+			EndSingleTimeCommands(a_pRenderer, &cmdBfr);
+		}
+
+		CopyBufferToImage(a_pRenderer, pStagingBuffer->buffer, pTexture->image, texWidth, texHeight);
+
+		{
+			CommandBuffer cmdBfr;
+			BeginSingleTimeCommands(a_pRenderer, &cmdBfr);
+			TransitionImageLayout(&cmdBfr, pTexture, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+			EndSingleTimeCommands(a_pRenderer, &cmdBfr);
+		}
+
+		DestroyBuffer(a_pRenderer, &pStagingBuffer);
+		delete pStagingBuffer;
+	}
 }
 
 void DestroyTexture(Renderer* a_pRenderer, Texture** a_ppTexture)
@@ -817,8 +954,46 @@ void DestroyTexture(Renderer* a_pRenderer, Texture** a_ppTexture)
 	LOG_IF(*a_ppTexture, LogSeverity::ERR, "Value at a_ppTexture is NULL");
 	vkDestroyImageView(a_pRenderer->device, (*a_ppTexture)->imageView, nullptr);
 	vkDestroyImage(a_pRenderer->device, (*a_ppTexture)->image, nullptr);
+	vkFreeMemory(a_pRenderer->device, (*a_ppTexture)->imageMemory, nullptr);
 	(*a_ppTexture)->imageView = VK_NULL_HANDLE;
 	(*a_ppTexture)->image = VK_NULL_HANDLE;
+	(*a_ppTexture)->imageMemory = VK_NULL_HANDLE;
+}
+
+void CreateSampler(Renderer* a_pRenderer, Sampler** a_ppSampler)
+{
+	LOG_IF(a_pRenderer, LogSeverity::ERR, "a_pRenderer is NULL");
+	LOG_IF(*a_ppSampler, LogSeverity::ERR, "Value at a_ppSampler is NULL");
+	Sampler* pSampler = *a_ppSampler;
+
+	VkSamplerCreateInfo add_info = {};
+	add_info.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
+	add_info.pNext = NULL;
+	add_info.flags = 0;
+	add_info.magFilter = pSampler->desc.magFilter;
+	add_info.minFilter = pSampler->desc.minFilter;
+	add_info.mipmapMode = pSampler->desc.mipMapMode;
+	add_info.addressModeU = pSampler->desc.addressModeU;
+	add_info.addressModeV = pSampler->desc.addressModeV;
+	add_info.addressModeW = pSampler->desc.addressModeW;
+	add_info.mipLodBias = pSampler->desc.mipLoadBias;
+	add_info.anisotropyEnable = (pSampler->desc.maxAnisotropy > 0.0f) ? VK_TRUE : VK_FALSE;
+	add_info.maxAnisotropy = pSampler->desc.maxAnisotropy;
+	add_info.compareEnable = (pSampler->desc.compareOp != VK_COMPARE_OP_NEVER) ? VK_TRUE : VK_FALSE;
+	add_info.compareOp = pSampler->desc.compareOp;
+	add_info.minLod = 0.0f;
+	add_info.maxLod = ((pSampler->desc.mipMapMode == VK_SAMPLER_MIPMAP_MODE_LINEAR) ? FLT_MAX : 0.0f);
+	add_info.borderColor = VK_BORDER_COLOR_FLOAT_TRANSPARENT_BLACK;
+	add_info.unnormalizedCoordinates = VK_FALSE;
+
+	LOG_IF(vkCreateSampler(a_pRenderer->device, &add_info, nullptr, &(pSampler->sampler)) == VK_SUCCESS, LogSeverity::ERR, "Failed to create sampler!");
+}
+
+void DestroySampler(Renderer* a_pRenderer, Sampler** a_ppSampler)
+{
+	LOG_IF(a_pRenderer, LogSeverity::ERR, "a_pRenderer is NULL");
+	LOG_IF(*a_ppSampler, LogSeverity::ERR, "Value at a_ppSampler is NULL");
+	vkDestroySampler(a_pRenderer->device, (*a_ppSampler)->sampler, nullptr);
 }
 
 bool hasStencilComponent(VkFormat format)
@@ -1263,12 +1438,12 @@ void CreateResourceDescriptor(Renderer* a_pRenderer, ResourceDescriptor** a_ppRe
 		uint32_t offset = 0;
 		for (uint32_t j = 0; j < binding.size(); ++j)
 		{
-			descriptorUpdateTemplateEntries[i].descriptorCount = binding[j].descriptorCount;
-			descriptorUpdateTemplateEntries[i].descriptorType = binding[j].descriptorType;
-			descriptorUpdateTemplateEntries[i].dstArrayElement = 0;
-			descriptorUpdateTemplateEntries[i].dstBinding = binding[j].binding;
-			descriptorUpdateTemplateEntries[i].offset = offset;
-			descriptorUpdateTemplateEntries[i].stride = sizeof(DescriptorUpdateData);
+			descriptorUpdateTemplateEntries[j].descriptorCount = binding[j].descriptorCount;
+			descriptorUpdateTemplateEntries[j].descriptorType = binding[j].descriptorType;
+			descriptorUpdateTemplateEntries[j].dstArrayElement = 0;
+			descriptorUpdateTemplateEntries[j].dstBinding = binding[j].binding;
+			descriptorUpdateTemplateEntries[j].offset = offset;
+			descriptorUpdateTemplateEntries[j].stride = sizeof(DescriptorUpdateData);
 			offset += sizeof(DescriptorUpdateData);
 		}
 
@@ -1332,10 +1507,31 @@ void CreateDescriptorSet(Renderer* a_pRenderer, DescriptorSet** a_ppDescriptorSe
 	allocInfo.pNext = nullptr;
 
 	pDescriptorSet->descriptorSets.resize(pDescriptorSet->desc.maxSet);
-	pDescriptorSet->updateData.resize(pDescriptorSet->desc.maxSet * pResDesc->descriptorInfos[updateFrequency].size());
 
 	LOG_IF( (vkAllocateDescriptorSets(a_pRenderer->device, &allocInfo, pDescriptorSet->descriptorSets.data()) == VK_SUCCESS),
 		LogSeverity::ERR, "failed to allocate descriptor set");
+
+	pDescriptorSet->updateData.resize(pDescriptorSet->desc.maxSet * pResDesc->descriptorInfos[updateFrequency].size());
+	std::vector<DescriptorInfo>& descriptorInfos = pResDesc->descriptorInfos[updateFrequency];
+	for (uint32_t i = 0; i < pDescriptorSet->desc.maxSet; ++i)
+	{
+		DescriptorUpdateData* pUpdateData = &pDescriptorSet->updateData[i * descriptorInfos.size()];
+		for (DescriptorInfo& descInfo : descriptorInfos)
+		{
+			switch (descInfo.binding.descriptorType)
+			{
+			case VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER:
+				pUpdateData->mBufferInfo.buffer = a_pRenderer->defaultResources.defaultBuffer.buffer;
+				pUpdateData->mBufferInfo.range = a_pRenderer->defaultResources.defaultBuffer.desc.bufferSize;
+				break;
+			case VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE:
+				pUpdateData->mImageInfo.imageView = a_pRenderer->defaultResources.defaultImage.imageView;
+				pUpdateData->mImageInfo.imageLayout = VK_IMAGE_LAYOUT_GENERAL;
+				break;
+			}
+			++pUpdateData;
+		}
+	}
 }
 
 void DestroyDescriptorSet(Renderer* a_pRenderer, DescriptorSet** a_ppDescriptorSet)
@@ -1375,16 +1571,18 @@ void UpdateDescriptorSet(Renderer* a_pRenderer, uint32_t index, DescriptorSet* a
 		}
 
 		DescriptorInfo& descInfo = pResourceDescriptor->descriptorInfos[updateFrequency][descIndex];
-		uint32_t updateIndexOffset = ((uint32_t)pResourceDescriptor->descriptorInfos[updateFrequency].size() * index) + descIndex;
+		uint32_t updateIndexOffset = ((uint32_t)pResourceDescriptor->descriptorInfos[updateFrequency].size() * index);
 		pUpdateData = &(a_pDescriptorSet->updateData[updateIndexOffset]);
 
+		DescriptorUpdateData* pData = pUpdateData + descIndex;
 		switch (descInfo.binding.descriptorType)
 		{
 		case VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER:
-			pUpdateData->mBufferInfo = a_pDescriptorUpdateInfos[i].mBufferInfo;
+			pData->mBufferInfo = a_pDescriptorUpdateInfos[i].mBufferInfo;
 			break;
+		case VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE:
 		case VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER:
-			pUpdateData->mImageInfo = a_pDescriptorUpdateInfos[i].mImageInfo;
+			pData->mImageInfo = a_pDescriptorUpdateInfos[i].mImageInfo;
 			break;
 		default:
 			break;

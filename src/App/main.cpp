@@ -10,6 +10,8 @@ ShaderModule* pFragmentShader = nullptr;
 Buffer* pVertexBuffer = nullptr;
 Buffer* pIndexBuffer = nullptr;
 Buffer** ppUniformBuffers = nullptr;
+Texture* pTexture = nullptr;
+Sampler* pSampler = nullptr;
 ResourceDescriptor* pResDesc = nullptr;
 DescriptorSet* pDescriptorSet = nullptr;
 Pipeline* pPipeline = nullptr;
@@ -23,6 +25,20 @@ const std::string resourcePath = {
 #if defined(__ANDROID_API__)
 	""
 #endif
+};
+
+struct float2
+{
+	float x;
+	float y;
+
+	float2() :
+		x(0), y(0)
+	{}
+
+	float2(float a, float b) :
+		x(a), y(b)
+	{}
 };
 
 struct float3
@@ -42,18 +58,19 @@ struct float3
 
 struct Vertex {
 	float3 pos;
+	float2 texCoord;
 };
 const std::vector<Vertex> vertices = {
-	{{-0.5f, -0.5f, 0.0f}},
-	{{0.5f, -0.5f, 0.0f}},
-	{{0.5f, 0.5f, 0.0f}},
-	{{-0.5f, 0.5f, 0.0f}}
+	{{-0.5f, -0.5f, 0.0f}, {1.0f, 0.0f}},
+	{{0.5f, -0.5f, 0.0f}, {0.0f, 0.0f}},
+	{{0.5f, 0.5f, 0.0f}, {0.0f, 1.0f}},
+	{{-0.5f, 0.5f, 0.0f}, {1.0f, 1.0f}}
 };
 const std::vector<uint16_t> indices = {
 	0, 1, 2, 2, 3, 0
 };
 
-static float in_fragColor[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
+static float in_fragColor[4] = { 1.0f, 1.0f, 0.0f, 0.0f };
 static int fragColorUpdateIndex = 0;
 
 class App : public IApp
@@ -119,6 +136,24 @@ public:
 			CreateBuffer(pRenderer, &ppUniformBuffers[i]);
 		}
 
+		pTexture = new Texture();
+		pTexture->desc.filePath = resourcePath + "Textures/awesomeface.png";
+		pTexture->desc.format = VK_FORMAT_R8G8B8A8_SRGB;
+		pTexture->desc.tiling = VK_IMAGE_TILING_OPTIMAL;
+		pTexture->desc.sampleCount = VK_SAMPLE_COUNT_1_BIT;
+		pTexture->desc.properties = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
+		pTexture->desc.usage = VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
+		pTexture->desc.aspectBits = VK_IMAGE_ASPECT_COLOR_BIT;
+		CreateTexture(pRenderer, &pTexture);
+
+		pSampler = new Sampler();
+		pSampler->desc.minFilter = VK_FILTER_LINEAR;
+		pSampler->desc.magFilter = VK_FILTER_LINEAR;
+		pSampler->desc.mipMapMode = VK_SAMPLER_MIPMAP_MODE_NEAREST;
+		pSampler->desc.addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+		pSampler->desc.addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+		pSampler->desc.addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+		CreateSampler(pRenderer, &pSampler);
 
 		pResDesc = new ResourceDescriptor();
 		pResDesc->desc.descriptors.push_back(
@@ -134,21 +169,43 @@ public:
 				"UniformBufferObject"
 			}
 		);
+		pResDesc->desc.descriptors.push_back(
+			{
+				(uint32_t)DescriptorUpdateFrequency::NONE,			// set
+				{
+					1,												// binding
+					VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,		// type
+					1,												// count
+					VK_SHADER_STAGE_FRAGMENT_BIT,					// stage flag
+					nullptr											// Immutable Sampler
+				},
+				"texSampler"
+			}
+		);
 		CreateResourceDescriptor(pRenderer, &pResDesc);
 
 		pDescriptorSet = new DescriptorSet();
 		pDescriptorSet->desc = { pResDesc, DescriptorUpdateFrequency::NONE, pRenderer->maxInFlightFrames };
 		CreateDescriptorSet(pRenderer, &pDescriptorSet);
 
-		DescriptorUpdateInfo descUpdateInfo;
-		descUpdateInfo.name = "UniformBufferObject";
-		descUpdateInfo.mBufferInfo.offset = 0;
-		for (uint32_t i = 0; i < pRenderer->maxInFlightFrames; ++i)
 		{
-			descUpdateInfo.mBufferInfo.buffer = ppUniformBuffers[i]->buffer;
-			descUpdateInfo.mBufferInfo.range = ppUniformBuffers[i]->desc.bufferSize;
-			UpdateDescriptorSet(pRenderer, i, pDescriptorSet, 1, &descUpdateInfo);
+			DescriptorUpdateInfo descUpdateInfos[2];
+			descUpdateInfos[0].name = "UniformBufferObject";
+			descUpdateInfos[0].mBufferInfo.offset = 0;
+			
+			descUpdateInfos[1].name = "texSampler";
+			descUpdateInfos[1].mImageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+			descUpdateInfos[1].mImageInfo.imageView = pTexture->imageView;
+			descUpdateInfos[1].mImageInfo.sampler = pSampler->sampler;
+
+			for (uint32_t i = 0; i < pRenderer->maxInFlightFrames; ++i)
+			{
+				descUpdateInfos[0].mBufferInfo.buffer = ppUniformBuffers[i]->buffer;
+				descUpdateInfos[0].mBufferInfo.range = ppUniformBuffers[i]->desc.bufferSize;
+				UpdateDescriptorSet(pRenderer, i, pDescriptorSet, 2, descUpdateInfos);
+			}
 		}
+
 		pPipeline = new Pipeline();
 
 		appInitialized = true;
@@ -163,6 +220,12 @@ public:
 
 		DestroyResourceDescriptor(pRenderer, &pResDesc);
 		delete pResDesc;
+
+		DestroySampler(pRenderer, &pSampler);
+		delete pSampler;
+
+		DestroyTexture(pRenderer, &pTexture);
+		delete pTexture;
 
 		for (uint32_t i = 0; i < pRenderer->maxInFlightFrames; ++i)
 		{
@@ -213,6 +276,14 @@ public:
 			0,								// location
 			VK_FORMAT_R32G32B32_SFLOAT,		// format
 			offsetof(Vertex, pos)			// offset
+		});
+		attribs.push_back({
+			0,								// binding
+			sizeof(float2),					// stride
+			VK_VERTEX_INPUT_RATE_VERTEX,	// inputrate
+			1,								// location
+			VK_FORMAT_R32G32_SFLOAT,		// format
+			offsetof(Vertex, texCoord)		// offset
 		});
 
 		pPipeline->desc.attribs = attribs;
