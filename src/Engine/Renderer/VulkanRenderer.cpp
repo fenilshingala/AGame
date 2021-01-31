@@ -81,12 +81,13 @@ void ExitRenderer(Renderer** a_ppRenderer)
 	for (uint32_t i = 0; i < pRenderer->maxInFlightFrames; i++)
 	{
 		vkDestroySemaphore(pRenderer->device, pRenderer->renderFinishedSemaphores[i], nullptr);
-		pRenderer->renderFinishedSemaphores[i] = VK_NULL_HANDLE;
 		vkDestroySemaphore(pRenderer->device, pRenderer->imageAvailableSemaphores[i], nullptr);
-		pRenderer->imageAvailableSemaphores[i] = VK_NULL_HANDLE;
 		vkDestroyFence(pRenderer->device, pRenderer->inFlightFences[i], nullptr);
-		pRenderer->inFlightFences[i] = VK_NULL_HANDLE;
 	}
+	free(pRenderer->renderFinishedSemaphores);
+	free(pRenderer->imageAvailableSemaphores);
+	free(pRenderer->inFlightFences);
+
 	vkDestroyDescriptorPool(pRenderer->device, pRenderer->descriptorPool, nullptr);
 	vkDestroyCommandPool(pRenderer->device, pRenderer->commandPool, nullptr);
 	pRenderer->commandPool = VK_NULL_HANDLE;
@@ -706,9 +707,18 @@ void CreateSyncObjects(Renderer** a_ppRenderer)
 	LOG_IF(*a_ppRenderer, LogSeverity::ERR, "Value at a_ppRenderer is NULL");
 	Renderer* pRenderer = *a_ppRenderer;
 	
-	pRenderer->imageAvailableSemaphores.resize(pRenderer->maxInFlightFrames);
-	pRenderer->renderFinishedSemaphores.resize(pRenderer->maxInFlightFrames);
-	pRenderer->inFlightFences.resize(pRenderer->maxInFlightFrames);
+	{
+		MALLOC_ZERO(VkSemaphore, ptr, sizeof(VkSemaphore) * pRenderer->maxInFlightFrames);
+		pRenderer->imageAvailableSemaphores = ptr;
+	}
+	{
+		MALLOC_ZERO(VkSemaphore, ptr, sizeof(VkSemaphore) * pRenderer->maxInFlightFrames);
+		pRenderer->renderFinishedSemaphores = ptr;
+	}
+	{
+		MALLOC_ZERO(VkFence, ptr, sizeof(VkFence) * pRenderer->maxInFlightFrames);
+		pRenderer->inFlightFences = ptr;
+	}
 
 	VkSemaphoreCreateInfo semaphoreInfo = {};
 	semaphoreInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
@@ -1263,7 +1273,7 @@ void CreateRenderPass(Renderer* a_pRenderer, LoadActionsDesc* pLoadActions, Rend
 	LOG_IF(*a_ppRenderPass, LogSeverity::ERR, "Value at a_ppRenderPass is NULL");
 
 	RenderPass* pRenderPass = *a_ppRenderPass;
-	uint32_t colorAttachmentsCount = (uint32_t)pRenderPass->desc.colorFormats.size();
+	uint32_t colorAttachmentsCount = pRenderPass->desc.colorAttachmentCount;
 	uint32_t depthAttachmentCount = (pRenderPass->desc.depthStencilFormat == VK_FORMAT_UNDEFINED) ? 0 : 1;
 
 	std::vector<VkAttachmentReference> attachmentRefs(colorAttachmentsCount + depthAttachmentCount);
@@ -1378,28 +1388,58 @@ void CreateResourceDescriptor(Renderer* a_pRenderer, ResourceDescriptor** a_ppRe
 	LOG_IF(*a_ppResourceDescriptor, LogSeverity::ERR, "Value at a_ppResourceDescriptor is NULL");
 
 	ResourceDescriptor* pResourceDescriptor = *a_ppResourceDescriptor;
+	uint32_t descriptorCount = pResourceDescriptor->desc.descriptorCount;
+
+	DescriptorInfo* sortedDescriptors = (DescriptorInfo*)malloc(sizeof(DescriptorInfo) * descriptorCount);
+	memcpy(sortedDescriptors, pResourceDescriptor->desc.descriptors, sizeof(DescriptorInfo) * descriptorCount);
+	std::sort(sortedDescriptors, sortedDescriptors + descriptorCount, [](DescriptorInfo a, DescriptorInfo b) { return a.set < b.set; });
+	std::sort(sortedDescriptors, sortedDescriptors + descriptorCount, [](DescriptorInfo a, DescriptorInfo b) { return a.binding.binding < b.binding.binding; });
+	
+	uint32_t* descriptorCounts = &(pResourceDescriptor->descriptorCounts[0]);
+
+	for (uint32_t i = 0; i < descriptorCount; ++i)
+	{
+		pResourceDescriptor->nameToDescriptorInfoIndexMap.insert({ (uint32_t)std::hash<std::string>{}(sortedDescriptors[i].name) , descriptorCounts[sortedDescriptors[i].set]++ });
+	}
+
+	VkDescriptorSetLayoutBinding* layoutBindings[(uint32_t)DescriptorUpdateFrequency::COUNT] = {};
+
+	MALLOC_ZERO(VkDescriptorSetLayoutBinding, pTempRawBindingsData, sizeof(VkDescriptorSetLayoutBinding) * descriptorCount);
+	MALLOC_ZERO(DescriptorInfo, pRawDescriptorData, sizeof(DescriptorInfo) * descriptorCount);
+
+	{
+		VkDescriptorSetLayoutBinding* pBindingData = pTempRawBindingsData;
+		DescriptorInfo* pDescriptorData = pRawDescriptorData;
+		for (int i = (int)DescriptorUpdateFrequency::COUNT - 1; i >= 0; --i)
+		{
+			if (descriptorCounts[i] > 0)
+			{
+				layoutBindings[i] = pBindingData;
+				pBindingData += descriptorCounts[i];
+
+				pResourceDescriptor->descriptorInfos[i] = pDescriptorData;
+				pDescriptorData += descriptorCounts[i];
+			}
+		}
+	}
 
 	// sort layouts by set and binding indexes
-	std::vector<DescriptorInfo> descriptors = pResourceDescriptor->desc.descriptors;
-	std::sort(descriptors.begin(), descriptors.end(), [](DescriptorInfo a, DescriptorInfo b) { return a.binding.binding < b.binding.binding; });
-	std::sort(descriptors.begin(), descriptors.end(), [](DescriptorInfo a, DescriptorInfo b) { return a.set < b.set; });
-
-	std::vector<VkDescriptorSetLayoutBinding> layoutBindings[(uint32_t)DescriptorUpdateFrequency::COUNT] = {};
-	uint32_t descriptorCounts[(uint32_t)DescriptorUpdateFrequency::COUNT] = { 0 };
-
-	for (DescriptorInfo& desc : descriptors)
+	for (uint32_t i = 0; i < descriptorCount; ++i)
 	{
-		layoutBindings[desc.set].push_back(desc.binding);					// list of descriptor bindings
-		pResourceDescriptor->descriptorInfos[desc.set].push_back(desc);		// store descriptor info in a list of it's set index
-		pResourceDescriptor->nameToDescriptorInfoIndexMap.insert({ (uint32_t)std::hash<std::string>{}(desc.name) , descriptorCounts[desc.set]++ });
+		uint32_t set = sortedDescriptors[i].set;
+		uint32_t index = pResourceDescriptor->nameToDescriptorInfoIndexMap[(uint32_t)std::hash<std::string>{}(sortedDescriptors[i].name)];
+		
+		memcpy(&(pResourceDescriptor->descriptorInfos[set][index]), (&sortedDescriptors[i]), sizeof(DescriptorInfo));		// store descriptor info in a list of it's set index
+		layoutBindings[set][index] = sortedDescriptors[i].binding;
 	}
 
 	uint32_t layoutsCount = 0;
 	for (int i = (int)DescriptorUpdateFrequency::COUNT-1; i >= 0; --i)
 	{
-		const std::vector<VkDescriptorSetLayoutBinding>& binding = layoutBindings[i];
+		const VkDescriptorSetLayoutBinding* binding = layoutBindings[i];
 
-		bool createLayout = binding.size() > 0;
+		bool createLayout = descriptorCounts[i] > 0;
+
 		if (!createLayout && i < (int)DescriptorUpdateFrequency::COUNT - 1)
 		{
 			createLayout = pResourceDescriptor->descriptorSetLayouts[i + 1] != VK_NULL_HANDLE;
@@ -1409,8 +1449,8 @@ void CreateResourceDescriptor(Renderer* a_pRenderer, ResourceDescriptor** a_ppRe
 		{
 			VkDescriptorSetLayoutCreateInfo layoutInfo = {};
 			layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
-			layoutInfo.bindingCount = static_cast<uint32_t>(binding.size());
-			layoutInfo.pBindings = binding.data();
+			layoutInfo.bindingCount = descriptorCounts[i];
+			layoutInfo.pBindings = binding;
 			LOG_IF((vkCreateDescriptorSetLayout(a_pRenderer->device, &layoutInfo, nullptr, &pResourceDescriptor->descriptorSetLayouts[i]) == VK_SUCCESS),
 				LogSeverity::ERR, "failed to create descriptor set layout!");
 			++layoutsCount;
@@ -1429,14 +1469,14 @@ void CreateResourceDescriptor(Renderer* a_pRenderer, ResourceDescriptor** a_ppRe
 
 	for (uint32_t i = 0; i < (uint32_t)DescriptorUpdateFrequency::COUNT; ++i)
 	{
-		const std::vector<VkDescriptorSetLayoutBinding>& binding = layoutBindings[i];
-		if (binding.empty())
+		const VkDescriptorSetLayoutBinding* binding = layoutBindings[i];
+		if (descriptorCounts[i] <= 0)
 			continue;
 
-		std::vector<VkDescriptorUpdateTemplateEntry> descriptorUpdateTemplateEntries(binding.size());
+		std::vector<VkDescriptorUpdateTemplateEntry> descriptorUpdateTemplateEntries(descriptorCounts[i]);
 
 		uint32_t offset = 0;
-		for (uint32_t j = 0; j < binding.size(); ++j)
+		for (uint32_t j = 0; j < descriptorCounts[i]; ++j)
 		{
 			descriptorUpdateTemplateEntries[j].descriptorCount = binding[j].descriptorCount;
 			descriptorUpdateTemplateEntries[j].descriptorType = binding[j].descriptorType;
@@ -1463,6 +1503,9 @@ void CreateResourceDescriptor(Renderer* a_pRenderer, ResourceDescriptor** a_ppRe
 		LOG_IF((vkCreateDescriptorUpdateTemplate(a_pRenderer->device, &createInfo, NULL, &pResourceDescriptor->descriptorUpdateTemplates[i]) == VK_SUCCESS),
 			LogSeverity::ERR, "failed to create descriptor update template!");
 	}
+
+	free(pTempRawBindingsData);
+	free(sortedDescriptors);
 }
 
 void DestroyResourceDescriptor(Renderer* a_pRenderer, ResourceDescriptor** a_ppResourceDescriptor)
@@ -1474,6 +1517,14 @@ void DestroyResourceDescriptor(Renderer* a_pRenderer, ResourceDescriptor** a_ppR
 	vkDestroyPipelineLayout(a_pRenderer->device, pResourceDescriptor->pipelineLayout, nullptr);
 	pResourceDescriptor->pipelineLayout = VK_NULL_HANDLE;
 
+	for (int i = (int)DescriptorUpdateFrequency::COUNT - 1; i >= 0; --i)
+	{
+		if (pResourceDescriptor->descriptorCounts[i] > 0)
+		{
+			free(pResourceDescriptor->descriptorInfos[i]);
+			break;
+		}
+	}
 	for (uint32_t i = 0; i < (uint32_t)DescriptorUpdateFrequency::COUNT; ++i)
 	{
 		if(pResourceDescriptor->descriptorUpdateTemplates[i] != VK_NULL_HANDLE)
@@ -1483,7 +1534,8 @@ void DestroyResourceDescriptor(Renderer* a_pRenderer, ResourceDescriptor** a_ppR
 
 		pResourceDescriptor->descriptorUpdateTemplates[i] = VK_NULL_HANDLE;
 		pResourceDescriptor->descriptorSetLayouts[i] = VK_NULL_HANDLE;
-		pResourceDescriptor->descriptorInfos[i].clear();
+		pResourceDescriptor->descriptorCounts[i] = 0;
+		pResourceDescriptor->descriptorInfos[i] = nullptr;
 	}
 }
 
@@ -1497,34 +1549,45 @@ void CreateDescriptorSet(Renderer* a_pRenderer, DescriptorSet** a_ppDescriptorSe
 	uint32_t updateFrequency = (uint32_t)pDescriptorSet->desc.updateFrequency;
 	LOG_IF(pResDesc->descriptorSetLayouts[updateFrequency],
 		LogSeverity::ERR, "For %u update frequency descriptorSetLayouts is NULL", (uint32_t)updateFrequency);
-	std::vector<VkDescriptorSetLayout> layouts(pDescriptorSet->desc.maxSet, pResDesc->descriptorSetLayouts[updateFrequency]);
+	std::vector<VkDescriptorSetLayout> layouts(pDescriptorSet->desc.descriptorSetCount, pResDesc->descriptorSetLayouts[updateFrequency]);
 
 	VkDescriptorSetAllocateInfo allocInfo = {};
 	allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
 	allocInfo.descriptorPool = a_pRenderer->descriptorPool;
-	allocInfo.descriptorSetCount = pDescriptorSet->desc.maxSet;
+	allocInfo.descriptorSetCount = pDescriptorSet->desc.descriptorSetCount;
 	allocInfo.pSetLayouts = layouts.data();
 	allocInfo.pNext = nullptr;
 
-	pDescriptorSet->descriptorSets.resize(pDescriptorSet->desc.maxSet);
+	{
+		MALLOC_ZERO(VkDescriptorSet, ptr, sizeof(VkDescriptorSet) * pDescriptorSet->desc.descriptorSetCount);
+		pDescriptorSet->descriptorSets = ptr;
+	}
 
-	LOG_IF( (vkAllocateDescriptorSets(a_pRenderer->device, &allocInfo, pDescriptorSet->descriptorSets.data()) == VK_SUCCESS),
+	LOG_IF( (vkAllocateDescriptorSets(a_pRenderer->device, &allocInfo, pDescriptorSet->descriptorSets) == VK_SUCCESS),
 		LogSeverity::ERR, "failed to allocate descriptor set");
 
-	pDescriptorSet->updateData.resize(pDescriptorSet->desc.maxSet * pResDesc->descriptorInfos[updateFrequency].size());
-	std::vector<DescriptorInfo>& descriptorInfos = pResDesc->descriptorInfos[updateFrequency];
-	for (uint32_t i = 0; i < pDescriptorSet->desc.maxSet; ++i)
+	uint32_t descriptorCount = pResDesc->descriptorCounts[updateFrequency];
+	uint32_t updateDataCount = pDescriptorSet->desc.descriptorSetCount * descriptorCount;
+	
 	{
-		DescriptorUpdateData* pUpdateData = &pDescriptorSet->updateData[i * descriptorInfos.size()];
-		for (DescriptorInfo& descInfo : descriptorInfos)
+		MALLOC_ZERO(DescriptorUpdateData, ptr, sizeof(DescriptorUpdateData) * updateDataCount);
+		pDescriptorSet->updateData = ptr;
+	}
+
+	DescriptorInfo* descriptorInfos = pResDesc->descriptorInfos[updateFrequency];
+	for (uint32_t i = 0; i < pDescriptorSet->desc.descriptorSetCount; ++i)
+	{
+		DescriptorUpdateData* pUpdateData = (pDescriptorSet->updateData + (i * descriptorCount));
+		for (uint32_t i = 0; i < descriptorCount; ++i)
 		{
-			switch (descInfo.binding.descriptorType)
+			switch (descriptorInfos[i].binding.descriptorType)
 			{
 			case VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER:
 				pUpdateData->mBufferInfo.buffer = a_pRenderer->defaultResources.defaultBuffer.buffer;
 				pUpdateData->mBufferInfo.range = a_pRenderer->defaultResources.defaultBuffer.desc.bufferSize;
 				break;
 			case VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE:
+			case VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER:
 				pUpdateData->mImageInfo.imageView = a_pRenderer->defaultResources.defaultImage.imageView;
 				pUpdateData->mImageInfo.imageLayout = VK_IMAGE_LAYOUT_GENERAL;
 				break;
@@ -1539,8 +1602,10 @@ void DestroyDescriptorSet(Renderer* a_pRenderer, DescriptorSet** a_ppDescriptorS
 	LOG_IF(a_pRenderer, LogSeverity::ERR, "a_pRenderer is NULL");
 	LOG_IF(*a_ppDescriptorSet, LogSeverity::ERR, "Value at a_ppDescriptorSet is NULL");
 	DescriptorSet* pDescriptorSet = *a_ppDescriptorSet;
-	pDescriptorSet->descriptorSets.clear();
-	pDescriptorSet->updateData.clear();
+	free(pDescriptorSet->descriptorSets);
+	pDescriptorSet->descriptorSets = nullptr;
+	free(pDescriptorSet->updateData);
+	pDescriptorSet->updateData = nullptr;
 }
 
 void UpdateDescriptorSet(Renderer* a_pRenderer, uint32_t index, DescriptorSet* a_pDescriptorSet, uint32_t a_uCount, const DescriptorUpdateInfo* a_pDescriptorUpdateInfos)
@@ -1571,7 +1636,7 @@ void UpdateDescriptorSet(Renderer* a_pRenderer, uint32_t index, DescriptorSet* a
 		}
 
 		DescriptorInfo& descInfo = pResourceDescriptor->descriptorInfos[updateFrequency][descIndex];
-		uint32_t updateIndexOffset = ((uint32_t)pResourceDescriptor->descriptorInfos[updateFrequency].size() * index);
+		uint32_t updateIndexOffset = ((uint32_t)pResourceDescriptor->descriptorCounts[updateFrequency] * index);
 		pUpdateData = &(a_pDescriptorSet->updateData[updateIndexOffset]);
 
 		DescriptorUpdateData* pData = pUpdateData + descIndex;
@@ -1618,7 +1683,7 @@ void CreateGraphicsPipeline(Renderer* a_pRenderer, Pipeline** a_ppPipeline)
 	pipelineInfo.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
 
 	// Shaders
-	uint32_t stageCount = (uint32_t)pPipeline->desc.shaders.size();
+	uint32_t stageCount = (uint32_t)pPipeline->desc.shaderCount;
 	std::vector<VkPipelineShaderStageCreateInfo> shaderStages(stageCount);
 	{
 		for (uint32_t i=0; i < stageCount; ++i)
@@ -1638,12 +1703,12 @@ void CreateGraphicsPipeline(Renderer* a_pRenderer, Pipeline** a_ppPipeline)
 	// Input Bindings and Attributes
 	VkPipelineVertexInputStateCreateInfo vertexInputStateCreateInfo = {};
 	std::vector<VkVertexInputBindingDescription> vertexInputBindings = {};
-	std::vector<VkVertexInputAttributeDescription> vertexInputAttributes(pPipeline->desc.attribs.size());
+	std::vector<VkVertexInputAttributeDescription> vertexInputAttributes(pPipeline->desc.attribCount);
 	{
-		std::sort(pPipeline->desc.attribs.begin(), pPipeline->desc.attribs.end(), [](VertexAttribute a, VertexAttribute b) { return a.binding < b.binding; });
+		std::sort(pPipeline->desc.attribs, pPipeline->desc.attribs+pPipeline->desc.attribCount, [](VertexAttribute a, VertexAttribute b) { return a.binding < b.binding; });
 
 		uint32_t current_binding = -1;
-		for (uint32_t i = 0; i < pPipeline->desc.attribs.size(); ++i)
+		for (uint32_t i = 0; i < pPipeline->desc.attribCount; ++i)
 		{
 
 			if (current_binding != pPipeline->desc.attribs[i].binding)
@@ -1789,7 +1854,8 @@ void CreateGraphicsPipeline(Renderer* a_pRenderer, Pipeline** a_ppPipeline)
 	// RenderPass
 	RenderPass* pRenderPass = new RenderPass();
 	{
-		pRenderPass->desc.colorFormats = pPipeline->desc.colorFormats;
+		pRenderPass->desc.colorAttachmentCount = pPipeline->desc.colorAttachmentCount;
+		memcpy(pRenderPass->desc.colorFormats, pPipeline->desc.colorFormats, sizeof(VkFormat) * pPipeline->desc.colorAttachmentCount);
 		pRenderPass->desc.depthStencilFormat = pPipeline->desc.depthStencilFormat;
 		pRenderPass->desc.sampleCount = pPipeline->desc.sampleCount;
 		CreateRenderPass(a_pRenderer, nullptr, &pRenderPass);
@@ -1910,10 +1976,11 @@ void BindRenderTargets(CommandBuffer* a_pCommandBuffer, uint32_t a_uRenderTarget
 	if (rp_itr == renderPasses.end())
 	{
 		RenderPass rdPass;
+		rdPass.desc.colorAttachmentCount = a_uRenderTargetCount;
 
 		for (uint32_t i = 0; i < a_uRenderTargetCount; ++i)
 		{
-			rdPass.desc.colorFormats.emplace_back(a_ppRenderTargets[i]->pTexture->desc.format);
+			rdPass.desc.colorFormats[i] = a_ppRenderTargets[i]->pTexture->desc.format;
 			rdPass.desc.sampleCount = a_ppRenderTargets[i]->pTexture->desc.sampleCount;
 		}
 
@@ -1986,15 +2053,19 @@ void BindRenderTargets(CommandBuffer* a_pCommandBuffer, uint32_t a_uRenderTarget
 	}
 
 	// begin renderpass
-	std::vector<VkClearValue> clearValues;
+	uint32_t clearValueCount = a_uRenderTargetCount;
+	VkClearValue clearValues[MAX_RENDER_TARGET_ATTACHMENTS] = {};
 	
 	if (a_pLoadActions != nullptr)
 	{
-		if (a_pLoadActions->clearColors.size())
-			clearValues.insert(clearValues.end(), a_pLoadActions->clearColors.begin(), a_pLoadActions->clearColors.end());
+		for (uint32_t i = 0; i < a_uRenderTargetCount; ++i)
+			clearValues[i] = a_pLoadActions->clearColors[i];
 	
 		if (a_pDepthTarget)
-			clearValues.emplace_back(a_pLoadActions->clearDepth);
+		{
+			clearValues[a_uRenderTargetCount] = a_pLoadActions->clearDepth;
+			++clearValueCount;
+		}
 	}
 
 	VkRenderPassBeginInfo renderPassInfo = {};
@@ -2003,8 +2074,8 @@ void BindRenderTargets(CommandBuffer* a_pCommandBuffer, uint32_t a_uRenderTarget
 	renderPassInfo.framebuffer = framebuffer;
 	renderPassInfo.renderArea.offset = { 0, 0 };
 	renderPassInfo.renderArea.extent = extent;
-	renderPassInfo.clearValueCount = static_cast<uint32_t>(clearValues.size());
-	renderPassInfo.pClearValues = clearValues.data();
+	renderPassInfo.clearValueCount = clearValueCount;
+	renderPassInfo.pClearValues = clearValues;
 
 	vkCmdBeginRenderPass(a_pCommandBuffer->commandBuffer, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
 }

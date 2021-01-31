@@ -155,33 +155,31 @@ public:
 		pSampler->desc.addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
 		CreateSampler(pRenderer, &pSampler);
 
-		pResDesc = new ResourceDescriptor();
-		pResDesc->desc.descriptors.push_back(
+		pResDesc = new ResourceDescriptor(2);
+		pResDesc->desc.descriptors[0] =
+		{
+			(uint32_t)DescriptorUpdateFrequency::NONE,	// set
 			{
-				(uint32_t)DescriptorUpdateFrequency::NONE,	// set
-				{
-					0,										// binding
-					VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,		// type
-					1,										// count
-					VK_SHADER_STAGE_VERTEX_BIT,				// stage flag
-					nullptr									// Immutable Sampler
-				},
-				"UniformBufferObject"
-			}
-		);
-		pResDesc->desc.descriptors.push_back(
+				0,										// binding
+				VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,		// type
+				1,										// count
+				VK_SHADER_STAGE_VERTEX_BIT,				// stage flag
+				nullptr									// Immutable Sampler
+			},
+			"UniformBufferObject"
+		};
+		pResDesc->desc.descriptors[1] =
+		{
+			(uint32_t)DescriptorUpdateFrequency::NONE,			// set
 			{
-				(uint32_t)DescriptorUpdateFrequency::NONE,			// set
-				{
-					1,												// binding
-					VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,		// type
-					1,												// count
-					VK_SHADER_STAGE_FRAGMENT_BIT,					// stage flag
-					nullptr											// Immutable Sampler
-				},
-				"texSampler"
-			}
-		);
+				1,												// binding
+				VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,		// type
+				1,												// count
+				VK_SHADER_STAGE_FRAGMENT_BIT,					// stage flag
+				nullptr											// Immutable Sampler
+			},
+			"texSampler"
+		};
 		CreateResourceDescriptor(pRenderer, &pResDesc);
 
 		pDescriptorSet = new DescriptorSet();
@@ -261,33 +259,36 @@ public:
 
 		CreateSwapchain(&pRenderer);
 
-		std::vector<ShaderModule*> shaders = {
+		ShaderModule* shaders[2] = {
 			pVertexShader,
 			pFragmentShader
 		};
 		
+		pPipeline->desc.shaderCount = 2;
 		pPipeline->desc.shaders = shaders;
 
-		std::vector<VertexAttribute> attribs;
-		attribs.push_back({
+		VertexAttribute attribs[2];
+		attribs[0] = {
 			0,								// binding
 			sizeof(float3),					// stride
 			VK_VERTEX_INPUT_RATE_VERTEX,	// inputrate
 			0,								// location
 			VK_FORMAT_R32G32B32_SFLOAT,		// format
 			offsetof(Vertex, pos)			// offset
-		});
-		attribs.push_back({
+		};
+		attribs[1] = {
 			0,								// binding
 			sizeof(float2),					// stride
 			VK_VERTEX_INPUT_RATE_VERTEX,	// inputrate
 			1,								// location
 			VK_FORMAT_R32G32_SFLOAT,		// format
 			offsetof(Vertex, texCoord)		// offset
-		});
+		};
 
+		pPipeline->desc.attribCount = 2;
 		pPipeline->desc.attribs = attribs;
-		pPipeline->desc.colorFormats.emplace_back(pRenderer->swapchainRenderTargets[0]->pTexture->desc.format);
+		pPipeline->desc.colorAttachmentCount = 1;
+		pPipeline->desc.colorFormats[0] = pRenderer->swapchainRenderTargets[0]->pTexture->desc.format;
 		pPipeline->desc.cullMode = VK_CULL_MODE_BACK_BIT;
 		//pPipeline->desc.depthBias = 0.0f;
 		//pPipeline->desc.depthBiasSlope = 0.0f;
@@ -314,7 +315,7 @@ public:
 		DestroyGraphicsPipeline(pRenderer, &pPipeline);
 		DestroySwapchain(&pRenderer);
 
-		pPipeline->desc.colorFormats.clear();
+		pPipeline->desc.colorAttachmentCount = 0;
 	}
 
 	void Update()
@@ -363,8 +364,8 @@ public:
 				clearColor.color.float32[1] = 0.2f;
 				clearColor.color.float32[2] = 0.2f;
 				clearColor.color.float32[3] = 1.0f;
-				loadDesc.clearColors.emplace_back(clearColor);
-				loadDesc.loadColorActions.emplace_back(VK_ATTACHMENT_LOAD_OP_CLEAR);
+				loadDesc.clearColors[0] = clearColor;
+				loadDesc.loadColorActions[0] = VK_ATTACHMENT_LOAD_OP_CLEAR;
 				BindRenderTargets(pCmd, 1, &pRenderTarget, &loadDesc);
 
 				SetViewport(pCmd, 0.0f, 0.0f, (float)pRenderTarget->pTexture->desc.width, (float)pRenderTarget->pTexture->desc.height, 1.0f, 1.0f);

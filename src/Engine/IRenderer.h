@@ -12,6 +12,10 @@
 #endif
 #include <vulkan/vulkan.h>
 
+#define MALLOC_ZERO(type, ptr, size) \
+	type* ptr = (type*)malloc(size); \
+	memset(ptr, 0, size)
+
 struct TextureDesc
 {
 	uint32_t				width;
@@ -105,31 +109,30 @@ struct Buffer
 	{}
 };
 
-struct RenderPassDesc
-{
-	std::vector<VkFormat>	colorFormats;
-	VkFormat				depthStencilFormat;
-	VkSampleCountFlagBits	sampleCount;
-
-	RenderPassDesc() :
-		colorFormats(), depthStencilFormat(VK_FORMAT_UNDEFINED), sampleCount(VK_SAMPLE_COUNT_1_BIT)
-	{}
-};
-
+#define MAX_RENDER_TARGET_ATTACHMENTS 8
 struct LoadActionsDesc
 {
-	std::vector<VkClearValue>		clearColors;
-	std::vector<VkAttachmentLoadOp>	loadColorActions;
+	VkClearValue					clearColors[MAX_RENDER_TARGET_ATTACHMENTS];
+	VkAttachmentLoadOp				loadColorActions[MAX_RENDER_TARGET_ATTACHMENTS];
 	VkClearValue					clearDepth;
 	VkAttachmentLoadOp				loadDepthAction;
 	VkAttachmentLoadOp				loadStencilAction;
 
 	LoadActionsDesc() :
 		clearColors(), loadColorActions(), clearDepth(), loadDepthAction(VK_ATTACHMENT_LOAD_OP_DONT_CARE), loadStencilAction(VK_ATTACHMENT_LOAD_OP_DONT_CARE)
-	{
-		clearDepth.color = {};
-		clearDepth.depthStencil = {};
-	}
+	{}
+};
+
+struct RenderPassDesc
+{
+	uint32_t				colorAttachmentCount;
+	VkFormat				colorFormats[MAX_RENDER_TARGET_ATTACHMENTS];
+	VkFormat				depthStencilFormat;
+	VkSampleCountFlagBits	sampleCount;
+
+	RenderPassDesc() :
+		colorAttachmentCount(0), colorFormats(), depthStencilFormat(VK_FORMAT_UNDEFINED), sampleCount(VK_SAMPLE_COUNT_1_BIT)
+	{}
 };
 
 struct RenderPass
@@ -176,24 +179,39 @@ struct DescriptorInfo
 
 struct ResourceDescriptorDesc
 {
-	std::vector<DescriptorInfo> descriptors;
+	uint32_t				descriptorCount;
+	DescriptorInfo*			descriptors;
 
-	ResourceDescriptorDesc() :
-		descriptors()
-	{}
+	ResourceDescriptorDesc(uint32_t a_uDescriptorCount) :
+		descriptorCount(a_uDescriptorCount), descriptors(nullptr)
+	{
+		MALLOC_ZERO(DescriptorInfo, ptr, sizeof(DescriptorInfo) * a_uDescriptorCount);
+		descriptors = ptr;
+	}
+
+	~ResourceDescriptorDesc()
+	{
+		if (descriptors && descriptorCount > 0)
+		{
+			free(descriptors);
+			descriptors = nullptr;
+			descriptorCount = 0;
+		}
+	}
 };
 
 struct ResourceDescriptor
 {
-	ResourceDescriptorDesc					desc;
-	std::vector<DescriptorInfo>				descriptorInfos[(uint32_t)DescriptorUpdateFrequency::COUNT];
-	std::unordered_map<uint32_t, uint32_t>	nameToDescriptorInfoIndexMap;
-	VkDescriptorSetLayout					descriptorSetLayouts[(uint32_t)DescriptorUpdateFrequency::COUNT];
-	VkDescriptorUpdateTemplate				descriptorUpdateTemplates[(uint32_t)DescriptorUpdateFrequency::COUNT];
-	VkPipelineLayout						pipelineLayout;
+	ResourceDescriptorDesc						desc;
+	uint32_t									descriptorCounts[(uint32_t)DescriptorUpdateFrequency::COUNT] = { 0 };
+	DescriptorInfo*								descriptorInfos[(uint32_t)DescriptorUpdateFrequency::COUNT] = { 0 };
+	std::unordered_map<uint32_t, uint32_t>		nameToDescriptorInfoIndexMap;
+	VkDescriptorSetLayout						descriptorSetLayouts[(uint32_t)DescriptorUpdateFrequency::COUNT] = { 0 };
+	VkDescriptorUpdateTemplate					descriptorUpdateTemplates[(uint32_t)DescriptorUpdateFrequency::COUNT] = { 0 };
+	VkPipelineLayout							pipelineLayout;
 
-	ResourceDescriptor() :
-		desc(), descriptorInfos(), nameToDescriptorInfoIndexMap(), descriptorSetLayouts(), descriptorUpdateTemplates(), pipelineLayout(VK_NULL_HANDLE)
+	ResourceDescriptor(uint32_t a_uDescriptorCount) :
+		desc(a_uDescriptorCount), descriptorCounts(), descriptorInfos(), nameToDescriptorInfoIndexMap(), descriptorSetLayouts(), descriptorUpdateTemplates(), pipelineLayout(VK_NULL_HANDLE)
 	{}
 };
 
@@ -201,14 +219,14 @@ struct DescriptorSetDesc
 {
 	ResourceDescriptor*			pResourceDescriptor;
 	DescriptorUpdateFrequency	updateFrequency;
-	uint32_t					maxSet;
+	uint32_t					descriptorSetCount;
 
 	DescriptorSetDesc() :
-		pResourceDescriptor(nullptr), updateFrequency(DescriptorUpdateFrequency::NONE), maxSet(0)
+		pResourceDescriptor(nullptr), updateFrequency(DescriptorUpdateFrequency::NONE), descriptorSetCount(0)
 	{}
 
-	DescriptorSetDesc(ResourceDescriptor* a_pResourceDescriptor, DescriptorUpdateFrequency a_eUpdateFrequency, uint32_t a_uMaxSet) :
-		pResourceDescriptor(a_pResourceDescriptor), updateFrequency(a_eUpdateFrequency), maxSet(a_uMaxSet)
+	DescriptorSetDesc(ResourceDescriptor* a_pResourceDescriptor, DescriptorUpdateFrequency a_eUpdateFrequency, uint32_t a_uDescriptorSetCount) :
+		pResourceDescriptor(a_pResourceDescriptor), updateFrequency(a_eUpdateFrequency), descriptorSetCount(a_uDescriptorSetCount)
 	{}
 };
 
@@ -221,12 +239,12 @@ union DescriptorUpdateData
 
 struct DescriptorSet
 {
-	DescriptorSetDesc					desc;
-	std::vector<VkDescriptorSet>		descriptorSets;
-	std::vector<DescriptorUpdateData>	updateData;
+	DescriptorSetDesc		desc;
+	VkDescriptorSet*		descriptorSets;
+	DescriptorUpdateData*	updateData;
 
 	DescriptorSet() :
-		desc(), descriptorSets(), updateData()
+		desc(), descriptorSets(nullptr), updateData(nullptr)
 	{}
 };
 
@@ -272,8 +290,10 @@ struct ShaderModule
 
 struct PipelineDesc
 {
-	std::vector<ShaderModule*>		shaders;
-	std::vector<VertexAttribute>	attribs;
+	uint32_t						shaderCount;
+	ShaderModule**					shaders;
+	uint32_t						attribCount;
+	VertexAttribute*				attribs;
 	VkPrimitiveTopology				topology;
 	VkCullModeFlags					cullMode;
 	float							depthBias;
@@ -286,13 +306,14 @@ struct PipelineDesc
 	bool							depthWrite;
 	VkCompareOp						depthFunction;
 	ResourceDescriptor*				pResourceDescriptor;
-	std::vector<VkFormat>			colorFormats;
+	uint32_t						colorAttachmentCount;
+	VkFormat						colorFormats[MAX_RENDER_TARGET_ATTACHMENTS];
 	VkFormat						depthStencilFormat;
 
 	PipelineDesc() :
-		attribs(), topology(VK_PRIMITIVE_TOPOLOGY_POINT_LIST), cullMode(VK_CULL_MODE_NONE), depthBias(0.0f), depthBiasSlope(0.0f), depthClamp(false), frontFace(VK_FRONT_FACE_COUNTER_CLOCKWISE),
+		shaderCount(0), shaders(nullptr), attribCount(0), attribs(nullptr), topology(VK_PRIMITIVE_TOPOLOGY_POINT_LIST), cullMode(VK_CULL_MODE_NONE), depthBias(0.0f), depthBiasSlope(0.0f), depthClamp(false), frontFace(VK_FRONT_FACE_COUNTER_CLOCKWISE),
 		polygonMode(VK_POLYGON_MODE_FILL), sampleCount(VK_SAMPLE_COUNT_1_BIT), depthTest(false), depthWrite(false), depthFunction(VK_COMPARE_OP_NEVER), pResourceDescriptor(nullptr),
-		colorFormats(), depthStencilFormat(VK_FORMAT_UNDEFINED)
+		colorAttachmentCount(0), colorFormats(), depthStencilFormat(VK_FORMAT_UNDEFINED)
 	{}
 };
 
@@ -346,9 +367,9 @@ struct Renderer
 	DefaultResources	defaultResources;
 
 	// syncronization objects
-	std::vector<VkSemaphore>	imageAvailableSemaphores;
-	std::vector<VkSemaphore>	renderFinishedSemaphores;
-	std::vector<VkFence>		inFlightFences;
+	VkSemaphore*				imageAvailableSemaphores;
+	VkSemaphore*				renderFinishedSemaphores;
+	VkFence*					inFlightFences;
 	uint32_t					maxInFlightFrames;
 	uint32_t					currentFrame;
 	uint32_t					imageIndex;
