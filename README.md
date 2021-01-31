@@ -7,11 +7,13 @@ My first attempt to create a cross-platform application!
   * Android (ARM64)
   
 ### Current state
-* Rendering a Triangle!
+* Renderer
   - [x] Vulkan objects: Instance, Device, Sync Objects and Swapchain
   - [x] RenderTarget (renderpass, framebuffers)
   - [x] Shader modules and Graphics pipeline
   - [x] (Command)pool, buffers, and various commands
+  - [x] Descriptor management (Create, Update and Bind descriptor sets)
+  - [x] Shader buffers and texture sampling to support model loading
 
 * Entity Component System
   - [x] Entity and Component creation, deletion
@@ -20,12 +22,10 @@ My first attempt to create a cross-platform application!
 - [x] Basic File and Directory Operations
 - [x] Log implementation: 3 types (INFO, WARNING, ERR)
 
-### Not working
-- [ ] Android triple-buffer
-- [ ] Android app safe exit
-
 ### To Do
-- [ ] Handle app minimize
-- [ ] Android validation layer
+- [ ] Depth buffering
+- [ ] Model loading
+- [ ] Mipmaps
+- [ ] Multisampling
 - [ ] InputManager (Keyboard, Mouse, Virtual Joystick for Android)
-- [ ] Shader buffers and texture sampling to support model loading
+- [ ] Open window with custom position, size (Windows OS)
