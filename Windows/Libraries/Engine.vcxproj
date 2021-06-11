@@ -18,6 +18,7 @@
     <ClInclude Include="..\..\src\Engine\IRenderer.h" />
     <ClInclude Include="..\..\src\Engine\Log.h" />
     <ClInclude Include="..\..\src\Engine\OS\FileSystem.h" />
+    <ClInclude Include="..\..\src\Engine\OS\Windows\KeyBindigs.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\..\src\Engine\ECS\Component.cpp" />

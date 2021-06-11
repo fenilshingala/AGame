@@ -6,18 +6,17 @@ layout(location = 0) in vec3 inPosition;
 layout(location = 1) in vec2 inTexCoord;
 
 // OUT
-layout(location = 0) out vec3 fragColor;
-layout(location = 1) out vec2 texCoord;
+layout(location = 0) out vec2 texCoord;
 
 // UNIFORM
 layout(set = 0, binding = 0) uniform UniformBufferObject
 {
-    vec3 in_fragColor;
-    float pad0;
+    mat4 model;
+    mat4 view;
+    mat4 projection;
 } ubo;
 
 void main() {
-    gl_Position = vec4(inPosition, 1.0);
-    fragColor = ubo.in_fragColor;
+    gl_Position = ubo.projection * ubo.view * ubo.model * vec4(inPosition, 1.0);
     texCoord = inTexCoord;
 }

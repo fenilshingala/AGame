@@ -26,11 +26,13 @@ struct TextureDesc
 	VkMemoryPropertyFlags	properties;
 	VkImageAspectFlagBits	aspectBits;
 	VkSampleCountFlagBits	sampleCount;
+	VkImageLayout			initialLayout;
 	std::string				filePath;
 
 	TextureDesc() :
 		width(0), height(0), format(VK_FORMAT_UNDEFINED), tiling(VK_IMAGE_TILING_OPTIMAL), usage(VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT),
-		properties(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT), aspectBits(VK_IMAGE_ASPECT_COLOR_BIT), sampleCount(VK_SAMPLE_COUNT_1_BIT), filePath()
+		properties(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT), aspectBits(VK_IMAGE_ASPECT_COLOR_BIT), sampleCount(VK_SAMPLE_COUNT_1_BIT),
+		initialLayout(VK_IMAGE_LAYOUT_UNDEFINED), filePath()
 	{}
 };
 

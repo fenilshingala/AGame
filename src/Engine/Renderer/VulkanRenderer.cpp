@@ -16,6 +16,7 @@
 #endif
 #if defined(__ANDROID_API__)
 #include <shaderc/shaderc.hpp>
+#include <dlfcn.h>
 #endif
 #define MIN(a, b) (((a) < (b)) ? (a) : (b))
 #define MAX(a, b) (((a) > (b)) ? (a) : (b))
@@ -118,14 +119,8 @@ void InitializeDefaultResources(Renderer* a_pRenderer)
 	pTexture->desc.aspectBits = VK_IMAGE_ASPECT_COLOR_BIT;
 	pTexture->desc.width = 2;
 	pTexture->desc.height = 2;
+	pTexture->desc.initialLayout = VK_IMAGE_LAYOUT_GENERAL;
 	CreateTexture(a_pRenderer, &pTexture);
-
-	{
-		CommandBuffer cmdBfr;
-		BeginSingleTimeCommands(a_pRenderer, &cmdBfr);
-		TransitionImageLayout(&cmdBfr, pTexture, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL);
-		EndSingleTimeCommands(a_pRenderer, &cmdBfr);
-	}
 }
 
 void DestroyDefaultResources(Renderer* a_pRenderer)
@@ -179,10 +174,32 @@ void CreateInstance(Renderer** a_ppRenderer)
 		VK_KHR_ANDROID_SURFACE_EXTENSION_NAME
 #endif
 	};
+
+	// Load Vulkan functions
+#if defined(_WIN32)
+	HMODULE module = LoadLibraryA("vulkan-1.dll");
+	if (!module)
+		return;
+
+	PFN_vkGetInstanceProcAddr vkGetInstanceProcAddr = (PFN_vkGetInstanceProcAddr)(void(*)(void))GetProcAddress(module, "vkGetInstanceProcAddr");
+#elif defined(__ANDROID_API__)
+	void* module = dlopen("libvulkan.so.1", RTLD_NOW | RTLD_LOCAL);
+	if (!module)
+		module = dlopen("libvulkan.so", RTLD_NOW | RTLD_LOCAL);
+	if (!module)
+		return;
+
+	PFN_vkGetInstanceProcAddr vkGetInstanceProcAddr = (PFN_vkGetInstanceProcAddr)dlsym(module, "vkGetInstanceProcAddr");
+#endif
 	
+	PFN_vkCreateInstance vkCreateInstance = (PFN_vkCreateInstance)vkGetInstanceProcAddr(NULL, "vkCreateInstance");
+	PFN_vkEnumerateInstanceExtensionProperties vkEnumerateInstanceExtensionProperties = (PFN_vkEnumerateInstanceExtensionProperties)vkGetInstanceProcAddr(NULL, "vkEnumerateInstanceExtensionProperties");
+	PFN_vkEnumerateInstanceLayerProperties vkEnumerateInstanceLayerProperties = (PFN_vkEnumerateInstanceLayerProperties)vkGetInstanceProcAddr(NULL, "vkEnumerateInstanceLayerProperties");
+	// End load Vulkan functions
+
 	uint32_t instanceExtensionsCount = sizeof(instanceExtensions) / sizeof(instanceExtensions[0]);
 	std::vector<const char*> requiredExtensions(instanceExtensions, instanceExtensions + instanceExtensionsCount);
-
+	
 #if defined(_DEBUG)
 	uint32_t layerCount;
 	vkEnumerateInstanceLayerProperties(&layerCount, nullptr);
@@ -906,12 +923,19 @@ void CreateTexture(Renderer* a_pRenderer, Texture** a_ppTexture)
 {
 	LOG_IF(a_pRenderer, LogSeverity::ERR, "Value at a_pRenderer is NULL");
 	LOG_IF(a_ppTexture, LogSeverity::ERR, "Value at a_ppTexture is NULL");
+	LOG_IF((*a_ppTexture)->desc.initialLayout != VK_IMAGE_LAYOUT_UNDEFINED, LogSeverity::ERR, "Texture initial layout can't be undefined!");
 	Texture* pTexture = *a_ppTexture;
 
 	if (pTexture->desc.filePath.empty())
 	{
 		LOG_IF((*a_ppTexture)->desc.width != 0 || (*a_ppTexture)->desc.height != 0, LogSeverity::ERR, "Texture resolution can't be 0");
 		CreateTextureUtil(a_pRenderer, a_ppTexture);
+		{
+			CommandBuffer cmdBfr;
+			BeginSingleTimeCommands(a_pRenderer, &cmdBfr);
+			TransitionImageLayout(&cmdBfr, pTexture, VK_IMAGE_LAYOUT_UNDEFINED, pTexture->desc.initialLayout);
+			EndSingleTimeCommands(a_pRenderer, &cmdBfr);
+		}
 	}
 	else
 	{
@@ -949,7 +973,7 @@ void CreateTexture(Renderer* a_pRenderer, Texture** a_ppTexture)
 		{
 			CommandBuffer cmdBfr;
 			BeginSingleTimeCommands(a_pRenderer, &cmdBfr);
-			TransitionImageLayout(&cmdBfr, pTexture, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+			TransitionImageLayout(&cmdBfr, pTexture, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, pTexture->desc.initialLayout);
 			EndSingleTimeCommands(a_pRenderer, &cmdBfr);
 		}
 
@@ -1301,9 +1325,9 @@ void CreateRenderPass(Renderer* a_pRenderer, LoadActionsDesc* pLoadActions, Rend
 	{
 		attachments[colorAttachmentsCount].format = pRenderPass->desc.depthStencilFormat;
 		attachments[colorAttachmentsCount].samples = pRenderPass->desc.sampleCount;
-		attachments[colorAttachmentsCount].loadOp = pLoadActions->loadDepthAction;
+		attachments[colorAttachmentsCount].loadOp = pLoadActions ? pLoadActions->loadDepthAction : VK_ATTACHMENT_LOAD_OP_DONT_CARE;
 		attachments[colorAttachmentsCount].storeOp = VK_ATTACHMENT_STORE_OP_STORE;
-		attachments[colorAttachmentsCount].stencilLoadOp = pLoadActions->loadStencilAction;
+		attachments[colorAttachmentsCount].stencilLoadOp = pLoadActions ? pLoadActions->loadStencilAction : VK_ATTACHMENT_LOAD_OP_DONT_CARE;
 		attachments[colorAttachmentsCount].stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
 		attachments[colorAttachmentsCount].initialLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
 		attachments[colorAttachmentsCount].finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
@@ -1888,7 +1912,7 @@ void CreateRenderTarget(Renderer* a_pRenderer, RenderTarget** a_ppRenderTarget)
 	LOG_IF(a_pRenderer, LogSeverity::ERR, "a_pRenderer is NULL");
 	LOG_IF(*a_ppRenderTarget, LogSeverity::ERR, "Value at a_ppRenderTarget is NULL");
 	LOG_IF((*a_ppRenderTarget)->pTexture, LogSeverity::ERR, "pTexture is NULL");
-	LOG_IF(((*a_ppRenderTarget)->id != INVALID_RT_ID), LogSeverity::ERR, "RenderTarger is already initialized");
+	LOG_IF(((*a_ppRenderTarget)->id == INVALID_RT_ID), LogSeverity::ERR, "RenderTarger is already initialized");
 
 	RenderTarget* pRenderTarget = *a_ppRenderTarget;
 	pRenderTarget->id = RT_IDs++;
