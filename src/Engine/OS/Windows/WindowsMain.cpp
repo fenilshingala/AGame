@@ -1,5 +1,5 @@
-#include "../../IApp.h"
-#include "../../IPlatform.h"
+#include "../../App.h"
+#include "../../Platform.h"
 
 #define WIN32_LEAN_AND_MEAN
 #include <Windows.h>

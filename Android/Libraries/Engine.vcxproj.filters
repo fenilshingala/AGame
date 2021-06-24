@@ -53,7 +53,7 @@
     <ClCompile Include="..\..\src\Engine\Renderer\VulkanRenderer.cpp">
       <Filter>Source Files\Renderer</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\Engine\LogImpl.cpp">
+    <ClCompile Include="..\..\src\Engine\Log.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>

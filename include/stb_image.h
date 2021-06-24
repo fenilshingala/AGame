@@ -348,7 +348,7 @@ extern "C" {
 #endif
 #endif
 
-#include "../src/Engine/OS/FileSystem.h"
+#include "../src/Engine/FileSystem.h"
 
 //////////////////////////////////////////////////////////////////////////////
 //

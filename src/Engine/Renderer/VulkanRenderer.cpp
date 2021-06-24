@@ -1,7 +1,7 @@
-#include "../IRenderer.h"
-#include "../IApp.h"
+#include "../Renderer.h"
+#include "../App.h"
 #include "../Log.h"
-#include "../OS/FileSystem.h"
+#include "../FileSystem.h"
 #define STB_IMAGE_IMPLEMENTATION
 #include "../../../include/stb_image.h"
 

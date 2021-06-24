@@ -13,7 +13,7 @@
 
 static std::mutex mtx;
 
-const char* GetFileNameFromPath(const char* path)
+static const char* GetFileNameFromPath(const char* path)
 {
 	std::string str = path;
 	size_t pos = str.find_last_of("\\");

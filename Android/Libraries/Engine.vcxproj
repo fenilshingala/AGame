@@ -22,7 +22,7 @@
   <ItemGroup>
     <ClCompile Include="..\..\src\Engine\ECS\Component.cpp" />
     <ClCompile Include="..\..\src\Engine\ECS\EntityManager.cpp" />
-    <ClCompile Include="..\..\src\Engine\LogImpl.cpp" />
+    <ClCompile Include="..\..\src\Engine\Log.cpp" />
     <ClCompile Include="..\..\src\Engine\OS\Android\AndroidFileSystem.cpp" />
     <ClCompile Include="..\..\src\Engine\OS\Android\AndroidMain.cpp" />
     <ClCompile Include="..\..\src\Engine\Renderer\VulkanRenderer.cpp" />

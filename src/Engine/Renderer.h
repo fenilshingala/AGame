@@ -1,6 +1,6 @@
 #pragma once
 
-#include "IPlatform.h"
+#include "Platform.h"
 #include <vector>
 #include <unordered_map>
 #include <string>

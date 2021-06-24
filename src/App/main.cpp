@@ -1,7 +1,7 @@
-#include "../Engine/OS/FileSystem.h"
+#include "../Engine/FileSystem.h"
 #include "../Engine/ECS/EntityManager.h"
-#include "../Engine/IApp.h"
-#include "../Engine/IRenderer.h"
+#include "../Engine/App.h"
+#include "../Engine/Renderer.h"
 #include "../Engine/Log.h"
 #define GLM_FORCE_RADIANS
 #define GLM_FORCE_DEPTH_ZERO_TO_ONE

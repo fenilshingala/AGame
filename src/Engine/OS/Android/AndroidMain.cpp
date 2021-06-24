@@ -1,5 +1,5 @@
-#include "../../IApp.h"
-#include "../../IPlatform.h"
+#include "../../App.h"
+#include "../../Platform.h"
 #include <unistd.h>
 
 static android_app* pAndroidApp = nullptr;
@@ -26,6 +26,7 @@ bool UpdateWindowDimensions(Window* a_pWindow)
         pWindow->height = height;
         return true;
     }
+    return false;
 }
 
 // Process the next main command.
@@ -163,8 +164,6 @@ void AndroidMain(struct android_app* a_pAndroidApp, IApp* a_pApp)
 
     InitFileSystem(a_pAndroidApp);
 
-    int events;
-    android_poll_source* source;
     do
     {
         if (!ready && !initialized)
