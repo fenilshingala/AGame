@@ -15,7 +15,7 @@ void InitFileSystem(void* a_PlatformData)
 	assetManager = app->activity->assetManager;
 }
 
-FileHandle OpenFile(const char* a_sFilename, const char* a_sMode)
+FileHandle FileOpen(const char* a_sFilename, const char* a_sMode)
 {
 	LOG_IF(a_sFilename, LogSeverity::ERR, "Empty File Name");
 	LOG_IF(a_sMode, LogSeverity::ERR, "Empty File Mode");
@@ -26,7 +26,7 @@ FileHandle OpenFile(const char* a_sFilename, const char* a_sMode)
 	return asset;
 }
 
-void CloseFile(FileHandle a_Handle)
+void FileClose(FileHandle a_Handle)
 {
 	LOG_IF(a_Handle, LogSeverity::ERR, "File Handle is NULL");
 	AAsset_close((AAsset*)a_Handle);

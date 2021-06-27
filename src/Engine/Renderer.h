@@ -28,11 +28,13 @@ struct TextureDesc
 	VkSampleCountFlagBits	sampleCount;
 	VkImageLayout			initialLayout;
 	std::string				filePath;
+	void*					rawData;
+	uint64_t				rawDataSize;
 
 	TextureDesc() :
 		width(0), height(0), format(VK_FORMAT_UNDEFINED), tiling(VK_IMAGE_TILING_OPTIMAL), usage(VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT),
 		properties(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT), aspectBits(VK_IMAGE_ASPECT_COLOR_BIT), sampleCount(VK_SAMPLE_COUNT_1_BIT),
-		initialLayout(VK_IMAGE_LAYOUT_UNDEFINED), filePath()
+		initialLayout(VK_IMAGE_LAYOUT_UNDEFINED), filePath(), rawData(nullptr), rawDataSize(0)
 	{}
 };
 
@@ -179,13 +181,21 @@ struct DescriptorInfo
 	{}
 };
 
+struct PushConstant
+{
+	std::string				name;
+	VkPushConstantRange		pushConstant;
+};
+
 struct ResourceDescriptorDesc
 {
 	uint32_t				descriptorCount;
 	DescriptorInfo*			descriptors;
+	uint32_t				pushConstantCount;
+	PushConstant			pushConstants[4];
 
 	ResourceDescriptorDesc(uint32_t a_uDescriptorCount) :
-		descriptorCount(a_uDescriptorCount), descriptors(nullptr)
+		descriptorCount(a_uDescriptorCount), descriptors(nullptr), pushConstantCount(0), pushConstants()
 	{
 		MALLOC_ZERO(DescriptorInfo, ptr, sizeof(DescriptorInfo) * a_uDescriptorCount);
 		descriptors = ptr;
@@ -208,6 +218,7 @@ struct ResourceDescriptor
 	uint32_t									descriptorCounts[(uint32_t)DescriptorUpdateFrequency::COUNT] = { 0 };
 	DescriptorInfo*								descriptorInfos[(uint32_t)DescriptorUpdateFrequency::COUNT] = { 0 };
 	std::unordered_map<uint32_t, uint32_t>		nameToDescriptorInfoIndexMap;
+	std::unordered_map<uint32_t, uint32_t>		nameToPushConstantIndexMap;
 	VkDescriptorSetLayout						descriptorSetLayouts[(uint32_t)DescriptorUpdateFrequency::COUNT] = { 0 };
 	VkDescriptorUpdateTemplate					descriptorUpdateTemplates[(uint32_t)DescriptorUpdateFrequency::COUNT] = { 0 };
 	VkPipelineLayout							pipelineLayout;
@@ -430,6 +441,7 @@ void BindPipeline(CommandBuffer* a_pCommandBuffer, Pipeline* a_pPipeline);
 void BindDescriptorSet(CommandBuffer* a_pCommandBuffer, uint32_t a_uIndex, DescriptorSet* a_pDescriptorSet);
 void BindVertexBuffers(CommandBuffer* a_pCommandBuffer, uint32_t a_uCount, Buffer** a_ppBuffers);
 void BindIndexBuffer(CommandBuffer* a_pCommandBuffer, Buffer* a_pBuffer, VkIndexType a_IndexType);
+void BindPushConstants(CommandBuffer* a_pCommandBuffer, ResourceDescriptor* a_pResourceDescriptor, const char* name, const void* pConstants);
 void Draw(CommandBuffer* a_pCommandBuffer, uint32_t a_uVertexCount, uint32_t a_uFirstVertex);
 void DrawIndexed(CommandBuffer* a_pCommandBuffer, uint32_t a_uIndicesCount, uint32_t a_uFirstIndex, uint32_t a_uFirstVertex);
 void Submit(CommandBuffer* a_pCommandBuffer);

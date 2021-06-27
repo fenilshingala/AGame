@@ -29,5 +29,11 @@
     <None Include="..\..\src\App\Resources\Shaders\basic.vert">
       <Filter>Resource Files\Shaders</Filter>
     </None>
+    <None Include="..\..\src\App\Resources\Shaders\pbr.vert">
+      <Filter>Resource Files\Shaders</Filter>
+    </None>
+    <None Include="..\..\src\App\Resources\Shaders\pbr.frag">
+      <Filter>Resource Files\Shaders</Filter>
+    </None>
   </ItemGroup>
 </Project>

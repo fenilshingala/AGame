@@ -17,6 +17,8 @@
   <ItemGroup>
     <None Include="..\..\..\..\src\App\Resources\Shaders\basic.frag" />
     <None Include="..\..\..\..\src\App\Resources\Shaders\basic.vert" />
+    <None Include="..\..\..\..\src\App\Resources\Shaders\pbr.frag" />
+    <None Include="..\..\..\..\src\App\Resources\Shaders\pbr.vert" />
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <ProjectGuid>{e1d1a7c0-07b5-4c61-ad3c-f3a2cae3b66f}</ProjectGuid>

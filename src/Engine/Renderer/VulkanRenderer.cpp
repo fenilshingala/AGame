@@ -926,7 +926,7 @@ void CreateTexture(Renderer* a_pRenderer, Texture** a_ppTexture)
 	LOG_IF((*a_ppTexture)->desc.initialLayout != VK_IMAGE_LAYOUT_UNDEFINED, LogSeverity::ERR, "Texture initial layout can't be undefined!");
 	Texture* pTexture = *a_ppTexture;
 
-	if (pTexture->desc.filePath.empty())
+	if ((pTexture->desc.filePath.empty()) && (pTexture->desc.rawDataSize == 0) && (pTexture->desc.rawData == nullptr))
 	{
 		LOG_IF((*a_ppTexture)->desc.width != 0 || (*a_ppTexture)->desc.height != 0, LogSeverity::ERR, "Texture resolution can't be 0");
 		CreateTextureUtil(a_pRenderer, a_ppTexture);
@@ -940,9 +940,23 @@ void CreateTexture(Renderer* a_pRenderer, Texture** a_ppTexture)
 	else
 	{
 		int texWidth, texHeight, texChannels;
-		stbi_uc* pixels = stbi_load(pTexture->desc.filePath.c_str(), &texWidth, &texHeight, &texChannels, STBI_rgb_alpha);
-		LOG_IF(pixels, LogSeverity::ERR, "failed to load texture image!");
-		VkDeviceSize imageSize = texWidth * texHeight * 4;
+		unsigned char* pixels = nullptr;
+		VkDeviceSize imageSize;
+
+		if (!pTexture->desc.filePath.empty())
+		{
+			pixels = stbi_load(pTexture->desc.filePath.c_str(), &texWidth, &texHeight, &texChannels, STBI_rgb_alpha);
+			LOG_IF(pixels, LogSeverity::ERR, "failed to load texture image!");
+			imageSize = texWidth * texHeight * 4;
+		}
+		else if ((pTexture->desc.rawDataSize > 0) && (pTexture->desc.rawData != nullptr))
+		{
+			pixels = (unsigned char*)pTexture->desc.rawData;
+			imageSize = pTexture->desc.rawDataSize;
+			texWidth = pTexture->desc.width;
+			texHeight = pTexture->desc.height;
+			texChannels = 4;
+		}
 
 		Buffer* pStagingBuffer = new Buffer();
 		pStagingBuffer->desc.bufferSize = imageSize;
@@ -955,7 +969,8 @@ void CreateTexture(Renderer* a_pRenderer, Texture** a_ppTexture)
 		memcpy(data, pixels, static_cast<size_t>(imageSize));
 		vkUnmapMemory(a_pRenderer->device, pStagingBuffer->bufferMemory);
 
-		stbi_image_free(pixels);
+		if (!pTexture->desc.filePath.empty())
+			stbi_image_free(pixels);
 
 		pTexture->desc.width = texWidth;
 		pTexture->desc.height = texHeight;
@@ -1481,12 +1496,19 @@ void CreateResourceDescriptor(Renderer* a_pRenderer, ResourceDescriptor** a_ppRe
 		}
 	}
 
+	VkPushConstantRange pushConstantRanges[4] = {};
+	for (uint32_t i = 0; i < pResourceDescriptor->desc.pushConstantCount; ++i)
+	{
+		pushConstantRanges[i] = pResourceDescriptor->desc.pushConstants[i].pushConstant;
+		pResourceDescriptor->nameToPushConstantIndexMap.insert({ (uint32_t)std::hash<std::string>{}(pResourceDescriptor->desc.pushConstants[i].name), i });
+	}
+
 	VkPipelineLayoutCreateInfo pipelineLayoutInfo = {};
 	pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
 	pipelineLayoutInfo.setLayoutCount = layoutsCount;
 	pipelineLayoutInfo.pSetLayouts = pResourceDescriptor->descriptorSetLayouts;
-	pipelineLayoutInfo.pushConstantRangeCount = 0;
-	pipelineLayoutInfo.pPushConstantRanges = nullptr;
+	pipelineLayoutInfo.pushConstantRangeCount = pResourceDescriptor->desc.pushConstantCount;
+	pipelineLayoutInfo.pPushConstantRanges = pushConstantRanges;
 
 	LOG_IF((vkCreatePipelineLayout(a_pRenderer->device, &pipelineLayoutInfo, nullptr, &pResourceDescriptor->pipelineLayout) == VK_SUCCESS),
 		LogSeverity::ERR, "failed to create pipeline layout!");
@@ -2166,10 +2188,11 @@ void CreateShaderModule(Renderer* a_pRenderer, const char* a_sPath, ShaderModule
 	
 	
 	// create shader module
-	FileHandle file = OpenFile((outputFilePath + shaderNameWithExt + ".spv").c_str(), "rb");
+	FileHandle file = FileOpen((outputFilePath + shaderNameWithExt + ".spv").c_str(), "rb");
 	uint32_t fileSize = FileSize(file);
 	buffer = (char*)malloc(sizeof(char) * fileSize);
 	FileRead(file, &buffer, fileSize);
+	FileClose(file);
 
 	std::vector<char> code(buffer, buffer+fileSize);
 #endif
@@ -2177,10 +2200,11 @@ void CreateShaderModule(Renderer* a_pRenderer, const char* a_sPath, ShaderModule
 #if defined(__ANDROID_API__)
 	// Like -DMY_DEFINE=1
 	//options.AddMacroDefinition("MY_DEFINE", "1");
-	FileHandle file = OpenFile(a_sPath, "r");
+	FileHandle file = FileOpen(a_sPath, "r");
 	uint32_t fileSize = FileSize(file);
 	buffer = (char*)malloc(sizeof(char) * fileSize);
 	FileRead(file, &buffer, fileSize);
+	FileClose(file);
 
 	shaderc_shader_kind kind = {};
 	switch (pShaderModule->stage)
@@ -2384,6 +2408,20 @@ void BindIndexBuffer(CommandBuffer* a_pCommandBuffer, Buffer* a_pBuffer, VkIndex
 	LOG_IF(a_pBuffer, LogSeverity::ERR, "a_pBuffer is NULL");
 
 	vkCmdBindIndexBuffer(a_pCommandBuffer->commandBuffer, a_pBuffer->buffer, 0, a_IndexType);
+}
+
+void BindPushConstants(CommandBuffer* a_pCommandBuffer, ResourceDescriptor* a_pResourceDescriptor, const char* name, const void* pConstants)
+{
+	LOG_IF(a_pCommandBuffer, LogSeverity::ERR, "a_pCommandBuffer is NULL");
+	LOG_IF(a_pResourceDescriptor, LogSeverity::ERR, "pResourceDescriptor is NULL");
+	LOG_IF(pConstants, LogSeverity::ERR, "pConstants is NULL");
+
+	std::unordered_map<uint32_t, uint32_t>::const_iterator itr = a_pResourceDescriptor->nameToPushConstantIndexMap.find((uint32_t)std::hash<std::string>{}(name));
+	LOG_IF(itr != a_pResourceDescriptor->nameToPushConstantIndexMap.end(), LogSeverity::ERR, "Push constant named \"%s\" not added to the resource descriptor", name);
+	
+	VkPushConstantRange pushConstant = a_pResourceDescriptor->desc.pushConstants[itr->second].pushConstant;
+	vkCmdPushConstants(a_pCommandBuffer->commandBuffer, a_pResourceDescriptor->pipelineLayout,
+		pushConstant.stageFlags, pushConstant.offset, pushConstant.size, pConstants);
 }
 
 void Draw(CommandBuffer* a_pCommandBuffer, uint32_t a_uVertexCount, uint32_t a_uFirstVertex)

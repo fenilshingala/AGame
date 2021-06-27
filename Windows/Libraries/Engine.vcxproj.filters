@@ -19,26 +19,29 @@
     <ClInclude Include="..\..\src\Engine\OS\FileSystem.h">
       <Filter>Source Files\OS</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\src\Engine\IApp.h">
-      <Filter>Source Files</Filter>
-    </ClInclude>
     <ClInclude Include="..\..\src\Engine\ECS\Component.h">
       <Filter>Source Files\ECS</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\Engine\ECS\EntityManager.h">
       <Filter>Source Files\ECS</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\src\Engine\IRenderer.h">
-      <Filter>Source Files\Renderer</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\src\Engine\IPlatform.h">
-      <Filter>Source Files</Filter>
-    </ClInclude>
     <ClInclude Include="..\..\src\Engine\Log.h">
       <Filter>Source Files</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\Engine\OS\Windows\KeyBindigs.h">
       <Filter>Source Files\OS</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\Engine\ModelLoader.h">
+      <Filter>Source Files\Renderer</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\Engine\Renderer.h">
+      <Filter>Source Files\Renderer</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\Engine\Platform.h">
+      <Filter>Source Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\Engine\App.h">
+      <Filter>Source Files</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
@@ -59,6 +62,9 @@
     </ClCompile>
     <ClCompile Include="..\..\src\Engine\Log.cpp">
       <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\Engine\Renderer\GltfModelLoader.cpp">
+      <Filter>Source Files\Renderer</Filter>
     </ClCompile>
   </ItemGroup>
 </Project>

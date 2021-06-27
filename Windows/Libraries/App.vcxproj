@@ -94,6 +94,8 @@
   <ItemGroup>
     <None Include="..\..\src\App\Resources\Shaders\basic.frag" />
     <None Include="..\..\src\App\Resources\Shaders\basic.vert" />
+    <None Include="..\..\src\App\Resources\Shaders\pbr.frag" />
+    <None Include="..\..\src\App\Resources\Shaders\pbr.vert" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

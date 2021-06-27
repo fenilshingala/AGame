@@ -11,13 +11,14 @@
     </ProjectConfiguration>
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="..\..\src\Engine\App.h" />
     <ClInclude Include="..\..\src\Engine\ECS\Component.h" />
     <ClInclude Include="..\..\src\Engine\ECS\EntityManager.h" />
-    <ClInclude Include="..\..\src\Engine\IApp.h" />
-    <ClInclude Include="..\..\src\Engine\IPlatform.h" />
-    <ClInclude Include="..\..\src\Engine\IRenderer.h" />
     <ClInclude Include="..\..\src\Engine\Log.h" />
+    <ClInclude Include="..\..\src\Engine\ModelLoader.h" />
     <ClInclude Include="..\..\src\Engine\OS\FileSystem.h" />
+    <ClInclude Include="..\..\src\Engine\Platform.h" />
+    <ClInclude Include="..\..\src\Engine\Renderer.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\..\src\Engine\ECS\Component.cpp" />
@@ -25,6 +26,7 @@
     <ClCompile Include="..\..\src\Engine\Log.cpp" />
     <ClCompile Include="..\..\src\Engine\OS\Android\AndroidFileSystem.cpp" />
     <ClCompile Include="..\..\src\Engine\OS\Android\AndroidMain.cpp" />
+    <ClCompile Include="..\..\src\Engine\Renderer\GltfModelLoader.cpp" />
     <ClCompile Include="..\..\src\Engine\Renderer\VulkanRenderer.cpp" />
   </ItemGroup>
   <PropertyGroup Label="Globals">
