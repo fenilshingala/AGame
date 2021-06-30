@@ -1,3 +1,4 @@
+#include "../Engine/Platform.h"
 #include "../Engine/FileSystem.h"
 #include "../Engine/ECS/EntityManager.h"
 #include "../Engine/App.h"
@@ -8,7 +9,12 @@
 #define GLM_FORCE_DEPTH_ZERO_TO_ONE
 #include "../../include/glm/glm.hpp"
 #include "../../include/glm/gtc/matrix_transform.hpp"
+#include "../Engine/Camera.h"
 #include <thread>
+
+#if defined(_WIN32)
+#include "../Engine/OS/Windows/KeyBindigs.h"
+#endif
 
 ShaderModule* pVertexShader = nullptr;
 ShaderModule* pFragmentShader = nullptr;
@@ -578,6 +584,12 @@ public:
 			for (Node* node : scene.nodes)
 				updateNodeDescriptor(node, nodeCounter);
 
+			camera.rotation_speed *= 0.25f;
+			camera.translation_speed *= 0.5f;
+			camera.type = CameraType::FirstPerson;
+			camera.SetRotation(glm::vec3(-18.0f, -5.0f, 0.0f));
+			camera.SetTranslation(glm::vec3(0.0f, 2.0f, -3.7f));
+
 			appInitialized = true;
 			pRenderer->window.reset = false;
 		}
@@ -586,6 +598,9 @@ public:
 			return;
 
 		CreateSwapchain(&pRenderer);
+
+		TextureDesc swapChainDesc = pRenderer->swapchainRenderTargets[0]->pTexture->desc;
+		camera.SetPerspective(60.0f, (float)swapChainDesc.width / (float)swapChainDesc.height, 0.1f, 512.0f);
 
 		ShaderModule* shaders[2] = {
 			pVertexShader,
@@ -774,6 +789,80 @@ public:
 				continue;
 			}
 
+			// INPUT UPDATE
+			camera.keys.up = false;
+			camera.keys.down = false;
+			camera.keys.left = false;
+			camera.keys.right = false;
+
+#if defined(_WIN32)
+			uint16_t keyStates[MAX_KEYS];
+			GetKeyStates(keyStates);
+			
+			// CAMERA UPDATE
+			int xpos = 0, ypos = 0;
+			GetMouseCoordinates(&xpos, &ypos);
+			if (firstMouse)
+			{
+				lastMouseX = xpos;
+				lastMouseY = ypos;
+				firstMouse = false;
+			}
+
+			int xoffset = xpos - lastMouseX;
+			int yoffset = lastMouseY - ypos;
+
+			lastMouseX = xpos;
+			lastMouseY = ypos;
+
+			if (IsRightClick())
+			{
+				if (keyStates[KEY_W])
+				{
+					camera.keys.up = true;
+				}
+				if (keyStates[KEY_S])
+				{
+					camera.keys.down = true;
+				}
+				if (keyStates[KEY_A])
+				{
+					camera.keys.left = true;
+				}
+				if (keyStates[KEY_D])
+				{
+					camera.keys.right = true;
+				}
+
+				camera.Rotate(glm::vec3((float)yoffset * 0.5f, (float)xoffset * 0.5f, 0.0f));
+				camera.Update(0.016f);
+			}
+#elif defined(__ANDROID_API__)
+			
+			if (IsTouch())
+			{
+				float touchX = 0.0f, touchY = 0.0f;
+				GetTouchLocation(&touchX, &touchY);
+				
+				if (firstTouch)
+				{
+					lastTouchX = touchX;
+					lastTouchY = touchY;
+					firstTouch = false;
+				}
+
+				float xoffset = touchX - lastTouchX;
+				float yoffset = lastTouchY - touchY;
+
+				lastTouchX = touchX;
+				lastTouchY = touchY;
+
+				camera.Rotate(glm::vec3((float)yoffset * 0.5f, (float)xoffset * 0.5f, 0.0f));
+				camera.Update(0.016f);
+			}
+			else
+				firstTouch = true;
+#endif
 			uint32_t currentFrame = pRenderer->currentFrame;
 			
 			{
@@ -782,10 +871,9 @@ public:
 				auto currentTime = std::chrono::high_resolution_clock::now();
 				float time = std::chrono::duration<float, std::chrono::seconds::period>(currentTime - startTime).count();
 				
-				ubo.model = glm::rotate(glm::mat4(1.0f), time * glm::radians(90.0f), glm::vec3(0.0f, 0.0f, 1.0f));
-				ubo.view = glm::lookAt(glm::vec3(2.0f, 2.0f, 2.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f));
-				ubo.projection = glm::perspective(glm::radians(45.0f), aspect, 0.1f, 10.0f);
-				ubo.projection[1][1] *= -1;
+				ubo.model = glm::mat4(1.0f);
+				ubo.view = camera.matrices.view;
+				ubo.projection = camera.matrices.perspective;
 
 				UpdateBuffer(pRenderer, ppUniformBuffers[currentFrame], &ubo, sizeof(UniformBufferObject));
 			}
@@ -854,6 +942,16 @@ public:
 	}
 
 	Renderer* pRenderer;
+	Camera camera;
+#if defined(_WIN32)
+	int lastMouseX = 0;
+	int lastMouseY = 0;
+	bool firstMouse = true;
+#elif defined(__ANDROID_API__)
+	float lastTouchX = 0;
+	float lastTouchY = 0;
+	bool firstTouch = true;
+#endif
 };
 
 APP_MAIN(App)

@@ -31,6 +31,7 @@ void ClearKeyCharBuffer();
 
 bool IsLeftClick();
 bool IsRightClick();
+void GetMouseCoordinates(int* a_pMouseX, int* a_pMouseY);
 #endif
 #if defined(__ANDROID_API__)
 const float TOUCH_LOCATION_INVALID = std::numeric_limits<float>::max();

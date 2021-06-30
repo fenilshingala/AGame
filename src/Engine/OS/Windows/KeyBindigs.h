@@ -62,7 +62,7 @@
 #define KEY_DOWN           0x28
 #define KEY_SELECT         0x29
 #define KEY_PRINT          0x2A
-#define KEY_EXECUTE        0x2B
+#define _KEY_EXECUTE_      0x2B
 #define KEY_SNAPSHOT       0x2C
 #define KEY_INSERT         0x2D
 #define KEY_DELETE         0x2E

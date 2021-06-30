@@ -268,6 +268,12 @@ bool IsRightClick()
 	return rightClickDown;
 }
 
+void GetMouseCoordinates(int* a_pMouseX, int* a_pMouseY)
+{
+	*a_pMouseX = mouseX;
+	*a_pMouseY = mouseY;
+}
+
 int WindowsMain(int argc, char** argv, IApp* pApp)
 {
 	pApp->Init();
