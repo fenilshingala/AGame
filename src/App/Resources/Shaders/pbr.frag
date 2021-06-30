@@ -1,4 +1,5 @@
 #version 450
+#extension GL_ARB_separate_shader_objects : enable
 
 layout (location = 0) in vec3 inWorldPos;
 layout (location = 1) in vec3 inNormal;
@@ -24,9 +25,9 @@ layout (set = 0, binding = 1) uniform UBOParams {
 	float debugViewEquation;
 } uboParams;
 
-layout (set = 0, binding = 2) uniform samplerCube samplerIrradiance;
-layout (set = 0, binding = 3) uniform samplerCube prefilteredMap;
-layout (set = 0, binding = 4) uniform sampler2D samplerBRDFLUT;
+//layout (set = 0, binding = 2) uniform samplerCube samplerIrradiance;
+//layout (set = 0, binding = 3) uniform samplerCube prefilteredMap;
+//layout (set = 0, binding = 4) uniform sampler2D samplerBRDFLUT;
 
 // Material bindings
 
@@ -139,25 +140,25 @@ vec3 getNormal()
 // Calculation of the lighting contribution from an optional Image Based Light source.
 // Precomputed Environment Maps are required uniform inputs and are computed as outlined in [1].
 // See our README.md on Environment Maps [3] for additional discussion.
-vec3 getIBLContribution(PBRInfo pbrInputs, vec3 n, vec3 reflection)
-{
-	float lod = (pbrInputs.perceptualRoughness * uboParams.prefilteredCubeMipLevels);
-	// retrieve a scale and bias to F0. See [1], Figure 3
-	vec3 brdf = (texture(samplerBRDFLUT, vec2(pbrInputs.NdotV, 1.0 - pbrInputs.perceptualRoughness))).rgb;
-	vec3 diffuseLight = SRGBtoLINEAR(tonemap(texture(samplerIrradiance, n))).rgb;
-
-	vec3 specularLight = SRGBtoLINEAR(tonemap(textureLod(prefilteredMap, reflection, lod))).rgb;
-
-	vec3 diffuse = diffuseLight * pbrInputs.diffuseColor;
-	vec3 specular = specularLight * (pbrInputs.specularColor * brdf.x + brdf.y);
-
-	// For presentation, this allows us to disable IBL terms
-	// For presentation, this allows us to disable IBL terms
-	diffuse *= uboParams.scaleIBLAmbient;
-	specular *= uboParams.scaleIBLAmbient;
-
-	return diffuse + specular;
-}
+//vec3 getIBLContribution(PBRInfo pbrInputs, vec3 n, vec3 reflection)
+//{
+//	float lod = (pbrInputs.perceptualRoughness * uboParams.prefilteredCubeMipLevels);
+//	// retrieve a scale and bias to F0. See [1], Figure 3
+//	vec3 brdf = (texture(samplerBRDFLUT, vec2(pbrInputs.NdotV, 1.0 - pbrInputs.perceptualRoughness))).rgb;
+//	vec3 diffuseLight = SRGBtoLINEAR(tonemap(texture(samplerIrradiance, n))).rgb;
+//
+//	vec3 specularLight = SRGBtoLINEAR(tonemap(textureLod(prefilteredMap, reflection, lod))).rgb;
+//
+//	vec3 diffuse = diffuseLight * pbrInputs.diffuseColor;
+//	vec3 specular = specularLight * (pbrInputs.specularColor * brdf.x + brdf.y);
+//
+//	// For presentation, this allows us to disable IBL terms
+//	// For presentation, this allows us to disable IBL terms
+//	diffuse *= uboParams.scaleIBLAmbient;
+//	specular *= uboParams.scaleIBLAmbient;
+//
+//	return diffuse + specular;
+//}
 
 // Basic Lambertian diffuse
 // Implementation from Lambert's Photometria https://archive.org/details/lambertsphotome00lambgoog
@@ -283,7 +284,7 @@ void main()
 		baseColor = vec4(mix(baseColorDiffusePart, baseColorSpecularPart, metallic * metallic), diffuse.a);
 
 	}
-
+	/*
 	diffuseColor = baseColor.rgb * (vec3(1.0) - f0);
 	diffuseColor *= 1.0 - metallic;
 		
@@ -407,6 +408,6 @@ void main()
 				break;				
 		}
 	}
-
+	*/
 	outColor = baseColor;
 }

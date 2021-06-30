@@ -141,7 +141,7 @@ class App : public IApp
 					pushConstBlockMaterial.normalTextureSet = primitive->material.normalTexture != nullptr ? primitive->material.texCoordSets.normal : -1;
 					pushConstBlockMaterial.occlusionTextureSet = primitive->material.occlusionTexture != nullptr ? primitive->material.texCoordSets.occlusion : -1;
 					pushConstBlockMaterial.emissiveTextureSet = primitive->material.emissiveTexture != nullptr ? primitive->material.texCoordSets.emissive : -1;
-					pushConstBlockMaterial.alphaMask = static_cast<float>(primitive->material.alphaMode == Material::ALPHAMODE_MASK);
+					pushConstBlockMaterial.alphaMask = static_cast<float>(primitive->material.alphaMode == Material::AlphaMode::ALPHAMODE_MASK);
 					pushConstBlockMaterial.alphaMaskCutoff = primitive->material.alphaCutoff;
 
 					// TODO: glTF specs states that metallic roughness should be preferred, even if specular glosiness is present
@@ -225,7 +225,7 @@ public:
 
 		pResDesc = new ResourceDescriptor(2);
 		pDescriptorSet = new DescriptorSet();
-		pPBRResDesc = new ResourceDescriptor(11);
+		pPBRResDesc = new ResourceDescriptor(8);
 		pSceneDescriptorSet = new DescriptorSet();
 		pMaterialDescriptorSet = new DescriptorSet();
 		pNodeDescriptorSet = new DescriptorSet();
@@ -392,7 +392,7 @@ public:
 				}
 			}
 
-			scene.loadFromFile(pRenderer, resourcePath + "Models/pony_cartoon/scene.gltf");
+			CreateModelFromFile(pRenderer, resourcePath + "Models/pony_cartoon/scene.gltf", &scene);
 
 			// Set 0
 			pPBRResDesc->desc.descriptors[0] =
@@ -407,7 +407,7 @@ public:
 				{ 1, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr },
 				"UBOParams"
 			};
-			pPBRResDesc->desc.descriptors[2] =
+			/*pPBRResDesc->desc.descriptors[2] =
 			{
 				(uint32_t)DescriptorUpdateFrequency::NONE,
 				{ 2, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr },
@@ -424,7 +424,7 @@ public:
 				(uint32_t)DescriptorUpdateFrequency::NONE,
 				{ 4, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr },
 				"samplerBRDFLUT"
-			};
+			};*/
 
 			// Set 1
 			const char* samplerNames[5] = {
@@ -437,7 +437,7 @@ public:
 
 			for (uint32_t i = 0; i < 5; ++i)
 			{
-				pPBRResDesc->desc.descriptors[i+5] =
+				pPBRResDesc->desc.descriptors[i+2] =
 				{
 					(uint32_t)DescriptorUpdateFrequency::PER_FRAME,	// set
 					{
@@ -450,7 +450,7 @@ public:
 					samplerNames[i]
 				};
 			}
-			pPBRResDesc->desc.descriptors[10] =
+			pPBRResDesc->desc.descriptors[7] =
 			{
 				(uint32_t)DescriptorUpdateFrequency::PER_BATCH,	// set
 				{
@@ -482,7 +482,7 @@ public:
 				descUpdateInfos[0].mBufferInfo.offset = 0;
 				descUpdateInfos[1].name = "UBOParams";
 				descUpdateInfos[1].mBufferInfo.offset = 0;
-				descUpdateInfos[2].name = "samplerIrradiance";
+				/*descUpdateInfos[2].name = "samplerIrradiance";
 				descUpdateInfos[3].name = "prefilteredMap";
 				descUpdateInfos[4].name = "samplerBRDFLUT";
 				for (uint32_t i = 2; i < 5; ++i)
@@ -490,7 +490,7 @@ public:
 					descUpdateInfos[i].mImageInfo.imageLayout = pRenderer->defaultResources.defaultImage.desc.initialLayout;
 					descUpdateInfos[i].mImageInfo.imageView = pRenderer->defaultResources.defaultImage.imageView;
 					descUpdateInfos[i].mImageInfo.sampler = pSampler->sampler;
-				}
+				}*/
 
 				for (uint32_t i = 0; i < pRenderer->maxInFlightFrames; ++i)
 				{
@@ -498,7 +498,7 @@ public:
 					descUpdateInfos[0].mBufferInfo.range = ppUniformBuffers[i]->desc.bufferSize;
 					descUpdateInfos[1].mBufferInfo.buffer = ppSceneBuffers[i]->buffer;
 					descUpdateInfos[1].mBufferInfo.range = ppSceneBuffers[i]->desc.bufferSize;
-					UpdateDescriptorSet(pRenderer, i, pSceneDescriptorSet, 5, descUpdateInfos);
+					UpdateDescriptorSet(pRenderer, i, pSceneDescriptorSet, 2, descUpdateInfos);
 				}
 			}
 
@@ -738,7 +738,7 @@ public:
 
 		if (pRenderer->window.reset)
 		{
-			scene.destroy();
+			DestroyModel(&scene);
 
 			DestroyDescriptorSet(pRenderer, &pDescriptorSet);
 			DestroyResourceDescriptor(pRenderer, &pResDesc);
@@ -836,11 +836,11 @@ public:
 				BindDescriptorSet(pCmd, pRenderer->currentFrame, pSceneDescriptorSet);
 				// Opaque primitives first
 				for (Node* node : scene.nodes) {
-					renderNode(pCmd, node, Material::ALPHAMODE_OPAQUE);
+					renderNode(pCmd, node, Material::AlphaMode::ALPHAMODE_OPAQUE);
 				}
 				// Alpha masked primitives
 				for (Node* node : scene.nodes) {
-					renderNode(pCmd, node, Material::ALPHAMODE_MASK);
+					renderNode(pCmd, node, Material::AlphaMode::ALPHAMODE_MASK);
 				}
 
 				BindRenderTargets(pCmd, 0, nullptr);

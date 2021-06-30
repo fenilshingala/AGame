@@ -939,7 +939,7 @@ void CreateTexture(Renderer* a_pRenderer, Texture** a_ppTexture)
 	}
 	else
 	{
-		int texWidth, texHeight, texChannels;
+		int texWidth = 0, texHeight = 0, texChannels = 0;
 		unsigned char* pixels = nullptr;
 		VkDeviceSize imageSize;
 

@@ -1,9 +1,28 @@
 #define TINYGLTF_NO_STB_IMAGE_WRITE
 #define TINYGLTF_IMPLEMENTATION
 
+#if defined(__ANDROID_API__)
+#define TINYGLTF_ANDROID_LOAD_FROM_ASSETS
+#endif
+
 #include "../ModelLoader.h"
 #include "../Renderer.h"
 #include "../Log.h"
+
+void LoadNode(Node* parent, const tinygltf::Node& node, uint32_t nodeIndex, const tinygltf::Model& model,
+	std::vector<uint32_t>& indexBuffer, std::vector<Model::Vertex>& vertexBuffer, float globalscale, Model* a_pModel);
+void LoadSkins(tinygltf::Model& gltfModel, Model* a_pModel);
+void LoadTextures(Renderer* pRenderer, tinygltf::Model& gltfModel, Model* a_pModel);
+void LoadTextureSamplers(tinygltf::Model& gltfModel, Model* a_pModel);
+void LoadMaterials(tinygltf::Model& gltfModel, Model* a_pModel);
+void LoadAnimations(tinygltf::Model& gltfModel, Model* a_pModel);
+void DrawNode(Node* node, CommandBuffer* commandBuffer);
+void Draw(CommandBuffer* commandBuffer, Model* a_pModel);
+void CalculateBoundingBox(Node* node, Node* parent, Model* a_pModel);
+void GetSceneDimensions(Model* a_pModel);
+void UpdateAnimation(uint32_t index, float time, Model* a_pModel);
+Node* FindNode(Node* parent, uint32_t index);
+Node* NodeFromIndex(uint32_t index, Model* a_pModel);
 
 // Bounding box
 
@@ -143,39 +162,123 @@ Node::~Node()
 
 // Model
 
-void Model::destroy(/*VkDevice device*/)
+void CreateModelFromFile(Renderer* a_pRenderer, std::string filename, Model* a_pModel, float scale)
 {
-	if (vertices->buffer != VK_NULL_HANDLE) {
-		DestroyBuffer(pRenderer, &vertices);
+	tinygltf::Model gltfModel;
+	tinygltf::TinyGLTF gltfContext;
+	std::string error;
+	std::string warning;
+
+	a_pModel->pRenderer = a_pRenderer;
+
+	bool binary = false;
+	size_t extpos = filename.rfind('.', filename.length());
+	if (extpos != std::string::npos) {
+		binary = (filename.substr(extpos + 1, filename.length() - extpos) == "glb");
 	}
-	if (indices->buffer != VK_NULL_HANDLE) {
-		DestroyBuffer(pRenderer, &indices);
-		indices->buffer = VK_NULL_HANDLE;
+
+	bool fileLoaded = binary ? gltfContext.LoadBinaryFromFile(&gltfModel, &error, &warning, filename.c_str()) : gltfContext.LoadASCIIFromFile(&gltfModel, &error, &warning, filename.c_str());
+
+	std::vector<uint32_t> indexBuffer;
+	std::vector<Model::Vertex> vertexBuffer;
+
+	if (fileLoaded) {
+		LoadTextureSamplers(gltfModel, a_pModel);
+		LoadTextures(a_pModel->pRenderer, gltfModel, a_pModel);
+		LoadMaterials(gltfModel, a_pModel);
+		// TODO: scene handling with no default scene
+		const tinygltf::Scene& scene = gltfModel.scenes[gltfModel.defaultScene > -1 ? gltfModel.defaultScene : 0];
+		for (size_t i = 0; i < scene.nodes.size(); i++) {
+			const tinygltf::Node node = gltfModel.nodes[scene.nodes[i]];
+			LoadNode(nullptr, node, scene.nodes[i], gltfModel, indexBuffer, vertexBuffer, scale, a_pModel);
+		}
+		if (gltfModel.animations.size() > 0) {
+			LoadAnimations(gltfModel, a_pModel);
+		}
+		LoadSkins(gltfModel, a_pModel);
+
+		for (Node* node : a_pModel->linearNodes) {
+			// Assign skins
+			if (node->skinIndex > -1) {
+				node->skin = a_pModel->skins[node->skinIndex];
+			}
+			// Initial pose
+			if (node->mesh) {
+				node->update();
+			}
+		}
 	}
-	for (ModelTexture* texture : textures)
+	else {
+		LOG(LogSeverity::ERR, "Could not load gltf file: %s", error.c_str());
+		return;
+	}
+
+	a_pModel->extensions = gltfModel.extensionsUsed;
+
+	a_pModel->vertices = new Buffer();
+	a_pModel->indices = new Buffer();
+
+	size_t vertexBufferSize = vertexBuffer.size() * sizeof(Model::Vertex);
+	size_t indexBufferSize = indexBuffer.size() * sizeof(uint32_t);
+
+	assert(vertexBufferSize > 0);
+
+	// Vertex data
+	a_pModel->vertices->desc.bufferUsageFlags = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT;
+	a_pModel->vertices->desc.memoryPropertyFlags = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
+	a_pModel->vertices->desc.bufferSize = vertexBufferSize;
+	a_pModel->vertices->desc.pData = vertexBuffer.data();
+	CreateBuffer(a_pModel->pRenderer, &a_pModel->vertices);
+
+	// Index data
+	if (indexBufferSize > 0) {
+		a_pModel->indices->desc.bufferUsageFlags = VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT;
+		a_pModel->indices->desc.memoryPropertyFlags = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
+		a_pModel->indices->desc.bufferSize = indexBufferSize;
+		a_pModel->indices->desc.pData = indexBuffer.data();
+		CreateBuffer(a_pModel->pRenderer, &a_pModel->indices);
+	}
+
+	GetSceneDimensions(a_pModel);
+}
+
+void DestroyModel(Model* a_pModel)
+{
+	if (a_pModel->vertices->buffer != VK_NULL_HANDLE) {
+		DestroyBuffer(a_pModel->pRenderer, &a_pModel->vertices);
+	}
+	if (a_pModel->indices->buffer != VK_NULL_HANDLE) {
+		DestroyBuffer(a_pModel->pRenderer, &a_pModel->indices);
+		a_pModel->indices->buffer = VK_NULL_HANDLE;
+	}
+	for (TextureSampler* texture : a_pModel->textures)
 	{
-		DestroyTexture(pRenderer, &texture->texture);
-		DestroySampler(pRenderer, &texture->sampler);
+		DestroyTexture(a_pModel->pRenderer, &texture->texture);
+		DestroySampler(a_pModel->pRenderer, &texture->sampler);
 		delete texture;
+		texture = nullptr;
 	}
 	
-	textures.resize(0);
-	textureSamplers.resize(0);
-	for (Node* node : nodes) {
+	a_pModel->textures.resize(0);
+	a_pModel->samplers.resize(0);
+	for (Node* node : a_pModel->nodes) {
 		delete node;
+		node = nullptr;
 	}
-	materials.resize(0);
-	animations.resize(0);
-	nodes.resize(0);
-	linearNodes.resize(0);
-	extensions.resize(0);
-	for (Skin* skin : skins)
+	a_pModel->materials.resize(0);
+	a_pModel->animations.resize(0);
+	a_pModel->nodes.resize(0);
+	a_pModel->linearNodes.resize(0);
+	a_pModel->extensions.resize(0);
+	for (Skin* skin : a_pModel->skins) {
 		delete skin;
-	skins.resize(0);
+		skin = nullptr;
+	}
+	a_pModel->skins.resize(0);
 };
 
-void Model::loadNode(Node* parent, const tinygltf::Node& node, uint32_t nodeIndex, const tinygltf::Model& model,
-					 std::vector<uint32_t>& indexBuffer, std::vector<Vertex>& vertexBuffer, float globalscale)
+void LoadNode(Node* parent, const tinygltf::Node& node, uint32_t nodeIndex, const tinygltf::Model& model,
+					 std::vector<uint32_t>& indexBuffer, std::vector<Model::Vertex>& vertexBuffer, float globalscale, Model* a_pModel)
 {
 	Node* newNode = new Node{};
 	newNode->index = nodeIndex;
@@ -190,7 +293,6 @@ void Model::loadNode(Node* parent, const tinygltf::Node& node, uint32_t nodeInde
 		translation = glm::make_vec3(node.translation.data());
 		newNode->translation = translation;
 	}
-	glm::mat4 rotation = glm::mat4(1.0f);
 	if (node.rotation.size() == 4) {
 		glm::quat q = glm::make_quat(node.rotation.data());
 		newNode->rotation = glm::mat4(q);
@@ -207,14 +309,14 @@ void Model::loadNode(Node* parent, const tinygltf::Node& node, uint32_t nodeInde
 	// Node with children
 	if (node.children.size() > 0) {
 		for (size_t i = 0; i < node.children.size(); i++) {
-			loadNode(newNode, model.nodes[node.children[i]], node.children[i], model, indexBuffer, vertexBuffer, globalscale);
+			LoadNode(newNode, model.nodes[node.children[i]], node.children[i], model, indexBuffer, vertexBuffer, globalscale, a_pModel);
 		}
 	}
 
 	// Node contains mesh data
 	if (node.mesh > -1) {
 		const tinygltf::Mesh mesh = model.meshes[node.mesh];
-		Mesh* newMesh = new Mesh(pRenderer, newNode->matrix);
+		Mesh* newMesh = new Mesh(a_pModel->pRenderer, newNode->matrix);
 		for (size_t j = 0; j < mesh.primitives.size(); j++) {
 			const tinygltf::Primitive& primitive = mesh.primitives[j];
 			uint32_t indexStart = static_cast<uint32_t>(indexBuffer.size());
@@ -294,7 +396,7 @@ void Model::loadNode(Node* parent, const tinygltf::Node& node, uint32_t nodeInde
 				hasSkin = (bufferJoints && bufferWeights);
 
 				for (size_t v = 0; v < posAccessor.count; v++) {
-					Vertex vert{};
+					Model::Vertex vert{};
 					vert.pos = glm::vec4(glm::make_vec3(&bufferPos[v * posByteStride]), 1.0f);
 					vert.normal = glm::normalize(glm::vec3(bufferNormals ? glm::make_vec3(&bufferNormals[v * normByteStride]) : glm::vec3(0.0f)));
 					vert.uv0 = bufferTexCoordSet0 ? glm::make_vec2(&bufferTexCoordSet0[v * uv0ByteStride]) : glm::vec3(0.0f);
@@ -367,7 +469,7 @@ void Model::loadNode(Node* parent, const tinygltf::Node& node, uint32_t nodeInde
 					return;
 				}
 			}
-			Primitive* newPrimitive = new Primitive(indexStart, indexCount, vertexCount, primitive.material > -1 ? materials[primitive.material] : materials.back());
+			Primitive* newPrimitive = new Primitive(indexStart, indexCount, vertexCount, primitive.material > -1 ? a_pModel->materials[primitive.material] : a_pModel->materials.back());
 			newPrimitive->setBoundingBox(posMin, posMax);
 			newMesh->primitives.push_back(newPrimitive);
 		}
@@ -386,12 +488,12 @@ void Model::loadNode(Node* parent, const tinygltf::Node& node, uint32_t nodeInde
 		parent->children.push_back(newNode);
 	}
 	else {
-		nodes.push_back(newNode);
+		a_pModel->nodes.push_back(newNode);
 	}
-	linearNodes.push_back(newNode);
+	a_pModel->linearNodes.push_back(newNode);
 }
 
-void Model::loadSkins(tinygltf::Model& gltfModel)
+void LoadSkins(tinygltf::Model& gltfModel, Model* a_pModel)
 {
 	for (tinygltf::Skin& source : gltfModel.skins) {
 		Skin* newSkin = new Skin{};
@@ -399,14 +501,14 @@ void Model::loadSkins(tinygltf::Model& gltfModel)
 
 		// Find skeleton root node
 		if (source.skeleton > -1) {
-			newSkin->skeletonRoot = nodeFromIndex(source.skeleton);
+			newSkin->skeletonRoot = NodeFromIndex(source.skeleton, a_pModel);
 		}
 
 		// Find joint nodes
 		for (int jointIndex : source.joints) {
-			Node* node = nodeFromIndex(jointIndex);
+			Node* node = NodeFromIndex(jointIndex, a_pModel);
 			if (node) {
-				newSkin->joints.push_back(nodeFromIndex(jointIndex));
+				newSkin->joints.push_back(NodeFromIndex(jointIndex, a_pModel));
 			}
 		}
 
@@ -419,13 +521,13 @@ void Model::loadSkins(tinygltf::Model& gltfModel)
 			memcpy(newSkin->inverseBindMatrices.data(), &buffer.data[accessor.byteOffset + bufferView.byteOffset], accessor.count * sizeof(glm::mat4));
 		}
 
-		skins.push_back(newSkin);
+		a_pModel->skins.push_back(newSkin);
 	}
 }
 
-void Model::loadTextures(Renderer* pRenderer, tinygltf::Model& gltfModel)
+void LoadTextures(Renderer* pRenderer, tinygltf::Model& gltfModel, Model* a_pModel)
 {
-	this->pRenderer = pRenderer;
+	a_pModel->pRenderer = pRenderer;
 
 	for (tinygltf::Texture& tex : gltfModel.textures) {
 		tinygltf::Image image = gltfModel.images[tex.source];
@@ -441,7 +543,7 @@ void Model::loadTextures(Renderer* pRenderer, tinygltf::Model& gltfModel)
 			pTextureSampler->desc.addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT;
 		}
 		else {
-			pTextureSampler = textureSamplers[tex.sampler];
+			pTextureSampler = a_pModel->samplers[tex.sampler];
 		}
 
 		unsigned char* buffer = nullptr;
@@ -483,10 +585,10 @@ void Model::loadTextures(Renderer* pRenderer, tinygltf::Model& gltfModel)
 		CreateTexture(pRenderer, &pTexture);
 		CreateSampler(pRenderer, &pTextureSampler);
 		
-		ModelTexture* pModelTexture = new ModelTexture();
+		TextureSampler* pModelTexture = new TextureSampler();
 		pModelTexture->texture = pTexture;
 		pModelTexture->sampler = pTextureSampler;
-		textures.push_back(pModelTexture);
+		a_pModel->textures.push_back(pModelTexture);
 	}
 }
 
@@ -522,7 +624,7 @@ static VkFilter getVkFilterMode(int32_t filterMode)
 	return VK_FILTER_NEAREST;
 }
 
-void Model::loadTextureSamplers(tinygltf::Model& gltfModel)
+void LoadTextureSamplers(tinygltf::Model& gltfModel, Model* a_pModel)
 {
 	for (tinygltf::Sampler smpl : gltfModel.samplers)
 	{
@@ -533,20 +635,20 @@ void Model::loadTextureSamplers(tinygltf::Model& gltfModel)
 		pSampler->desc.addressModeV = getVkWrapMode(smpl.wrapT);
 		pSampler->desc.addressModeW = pSampler->desc.addressModeV;
 
-		textureSamplers.push_back(pSampler);
+		a_pModel->samplers.push_back(pSampler);
 	}
 }
 
-void Model::loadMaterials(tinygltf::Model& gltfModel)
+void LoadMaterials(tinygltf::Model& gltfModel, Model* a_pModel)
 {
 	for (tinygltf::Material& mat : gltfModel.materials) {
 		Material material{};
 		if (mat.values.find("baseColorTexture") != mat.values.end()) {
-			material.baseColorTexture = textures[mat.values["baseColorTexture"].TextureIndex()];
+			material.baseColorTexture = a_pModel->textures[mat.values["baseColorTexture"].TextureIndex()];
 			material.texCoordSets.baseColor = mat.values["baseColorTexture"].TextureTexCoord();
 		}
 		if (mat.values.find("metallicRoughnessTexture") != mat.values.end()) {
-			material.metallicRoughnessTexture = textures[mat.values["metallicRoughnessTexture"].TextureIndex()];
+			material.metallicRoughnessTexture = a_pModel->textures[mat.values["metallicRoughnessTexture"].TextureIndex()];
 			material.texCoordSets.metallicRoughness = mat.values["metallicRoughnessTexture"].TextureTexCoord();
 		}
 		if (mat.values.find("roughnessFactor") != mat.values.end()) {
@@ -559,25 +661,25 @@ void Model::loadMaterials(tinygltf::Model& gltfModel)
 			material.baseColorFactor = glm::make_vec4(mat.values["baseColorFactor"].ColorFactor().data());
 		}
 		if (mat.additionalValues.find("normalTexture") != mat.additionalValues.end()) {
-			material.normalTexture = textures[mat.additionalValues["normalTexture"].TextureIndex()];
+			material.normalTexture = a_pModel->textures[mat.additionalValues["normalTexture"].TextureIndex()];
 			material.texCoordSets.normal = mat.additionalValues["normalTexture"].TextureTexCoord();
 		}
 		if (mat.additionalValues.find("emissiveTexture") != mat.additionalValues.end()) {
-			material.emissiveTexture = textures[mat.additionalValues["emissiveTexture"].TextureIndex()];
+			material.emissiveTexture = a_pModel->textures[mat.additionalValues["emissiveTexture"].TextureIndex()];
 			material.texCoordSets.emissive = mat.additionalValues["emissiveTexture"].TextureTexCoord();
 		}
 		if (mat.additionalValues.find("occlusionTexture") != mat.additionalValues.end()) {
-			material.occlusionTexture = textures[mat.additionalValues["occlusionTexture"].TextureIndex()];
+			material.occlusionTexture = a_pModel->textures[mat.additionalValues["occlusionTexture"].TextureIndex()];
 			material.texCoordSets.occlusion = mat.additionalValues["occlusionTexture"].TextureTexCoord();
 		}
 		if (mat.additionalValues.find("alphaMode") != mat.additionalValues.end()) {
 			tinygltf::Parameter param = mat.additionalValues["alphaMode"];
 			if (param.string_value == "BLEND") {
-				material.alphaMode = Material::ALPHAMODE_BLEND;
+				material.alphaMode = Material::AlphaMode::ALPHAMODE_BLEND;
 			}
 			if (param.string_value == "MASK") {
 				material.alphaCutoff = 0.5f;
-				material.alphaMode = Material::ALPHAMODE_MASK;
+				material.alphaMode = Material::AlphaMode::ALPHAMODE_MASK;
 			}
 		}
 		if (mat.additionalValues.find("alphaCutoff") != mat.additionalValues.end()) {
@@ -594,14 +696,14 @@ void Model::loadMaterials(tinygltf::Model& gltfModel)
 			std::map<std::string, tinygltf::Value>::const_iterator ext = mat.extensions.find("KHR_materials_pbrSpecularGlossiness");
 			if (ext->second.Has("specularGlossinessTexture")) {
 				tinygltf::Value index = ext->second.Get("specularGlossinessTexture").Get("index");
-				material.extension.specularGlossinessTexture = textures[index.Get<int>()];
+				material.extension.specularGlossinessTexture = a_pModel->textures[index.Get<int>()];
 				tinygltf::Value texCoordSet = ext->second.Get("specularGlossinessTexture").Get("texCoord");
 				material.texCoordSets.specularGlossiness = texCoordSet.Get<int>();
 				material.pbrWorkflows.specularGlossiness = true;
 			}
 			if (ext->second.Has("diffuseTexture")) {
 				tinygltf::Value index = ext->second.Get("diffuseTexture").Get("index");
-				material.extension.diffuseTexture = textures[index.Get<int>()];
+				material.extension.diffuseTexture = a_pModel->textures[index.Get<int>()];
 			}
 			if (ext->second.Has("diffuseFactor")) {
 				tinygltf::Value factor = ext->second.Get("diffuseFactor");
@@ -619,19 +721,19 @@ void Model::loadMaterials(tinygltf::Model& gltfModel)
 			}
 		}
 
-		materials.push_back(material);
+		a_pModel->materials.push_back(material);
 	}
 	// Push a default material at the end of the list for meshes with no material assigned
-	materials.push_back(Material());
+	a_pModel->materials.push_back(Material());
 }
 
-void Model::loadAnimations(tinygltf::Model& gltfModel)
+void LoadAnimations(tinygltf::Model& gltfModel, Model* a_pModel)
 {
 	for (tinygltf::Animation& anim : gltfModel.animations) {
 		Animation animation{};
 		animation.name = anim.name;
 		if (anim.name.empty()) {
-			animation.name = std::to_string(animations.size());
+			animation.name = std::to_string(a_pModel->animations.size());
 		}
 
 		// Samplers
@@ -725,7 +827,7 @@ void Model::loadAnimations(tinygltf::Model& gltfModel)
 				continue;
 			}
 			channel.samplerIndex = source.sampler;
-			channel.node = nodeFromIndex(source.target_node);
+			channel.node = NodeFromIndex(source.target_node, a_pModel);
 			if (!channel.node) {
 				continue;
 			}
@@ -733,91 +835,11 @@ void Model::loadAnimations(tinygltf::Model& gltfModel)
 			animation.channels.push_back(channel);
 		}
 
-		animations.push_back(animation);
+		a_pModel->animations.push_back(animation);
 	}
 }
 
-void Model::loadFromFile(Renderer* pRenderer, std::string filename, float scale)
-{
-	tinygltf::Model gltfModel;
-	tinygltf::TinyGLTF gltfContext;
-	std::string error;
-	std::string warning;
-
-	this->pRenderer = pRenderer;
-
-	bool binary = false;
-	size_t extpos = filename.rfind('.', filename.length());
-	if (extpos != std::string::npos) {
-		binary = (filename.substr(extpos + 1, filename.length() - extpos) == "glb");
-	}
-
-	bool fileLoaded = binary ? gltfContext.LoadBinaryFromFile(&gltfModel, &error, &warning, filename.c_str()) : gltfContext.LoadASCIIFromFile(&gltfModel, &error, &warning, filename.c_str());
-
-	std::vector<uint32_t> indexBuffer;
-	std::vector<Vertex> vertexBuffer;
-
-	if (fileLoaded) {
-		loadTextureSamplers(gltfModel);
-		loadTextures(this->pRenderer, gltfModel);
-		loadMaterials(gltfModel);
-		// TODO: scene handling with no default scene
-		const tinygltf::Scene& scene = gltfModel.scenes[gltfModel.defaultScene > -1 ? gltfModel.defaultScene : 0];
-		for (size_t i = 0; i < scene.nodes.size(); i++) {
-			const tinygltf::Node node = gltfModel.nodes[scene.nodes[i]];
-			loadNode(nullptr, node, scene.nodes[i], gltfModel, indexBuffer, vertexBuffer, scale);
-		}
-		if (gltfModel.animations.size() > 0) {
-			loadAnimations(gltfModel);
-		}
-		loadSkins(gltfModel);
-
-		for (Node* node : linearNodes) {
-			// Assign skins
-			if (node->skinIndex > -1) {
-				node->skin = skins[node->skinIndex];
-			}
-			// Initial pose
-			if (node->mesh) {
-				node->update();
-			}
-		}
-	}
-	else {
-		LOG(LogSeverity::ERR, "Could not load gltf file: %s", error);
-		return;
-	}
-
-	extensions = gltfModel.extensionsUsed;
-
-	vertices = new Buffer();
-	indices = new Buffer();
-
-	size_t vertexBufferSize = vertexBuffer.size() * sizeof(Vertex);
-	size_t indexBufferSize = indexBuffer.size() * sizeof(uint32_t);
-
-	assert(vertexBufferSize > 0);
-
-	// Vertex data
-	vertices->desc.bufferUsageFlags = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT;
-	vertices->desc.memoryPropertyFlags = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
-	vertices->desc.bufferSize = vertexBufferSize;
-	vertices->desc.pData = vertexBuffer.data();
-	CreateBuffer(this->pRenderer, &vertices);
-	
-	// Index data
-	if (indexBufferSize > 0) {
-		indices->desc.bufferUsageFlags = VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT;
-		indices->desc.memoryPropertyFlags = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
-		indices->desc.bufferSize = indexBufferSize;
-		indices->desc.pData = indexBuffer.data();
-		CreateBuffer(this->pRenderer, &indices);
-	}
-
-	getSceneDimensions();
-}
-
-void Model::drawNode(Node* node, CommandBuffer* commandBuffer)
+void DrawNode(Node* node, CommandBuffer* commandBuffer)
 {
 	if (node->mesh) {
 		for (Primitive* primitive : node->mesh->primitives) {
@@ -825,22 +847,22 @@ void Model::drawNode(Node* node, CommandBuffer* commandBuffer)
 		}
 	}
 	for (Node* child : node->children) {
-		drawNode(child, commandBuffer);
+		DrawNode(child, commandBuffer);
 	}
 }
 
-void Model::draw(CommandBuffer* commandBuffer)
+void Draw(CommandBuffer* commandBuffer, Model* a_pModel)
 {
 	const VkDeviceSize offsets[1] = { 0 };
-	vkCmdBindVertexBuffers(commandBuffer->commandBuffer, 0, 1, &vertices->buffer, offsets);
-	vkCmdBindIndexBuffer(commandBuffer->commandBuffer, indices->buffer, 0, VK_INDEX_TYPE_UINT32);
-	for (Node* node : nodes) {
-		drawNode(node, commandBuffer);
+	vkCmdBindVertexBuffers(commandBuffer->commandBuffer, 0, 1, &a_pModel->vertices->buffer, offsets);
+	vkCmdBindIndexBuffer(commandBuffer->commandBuffer, a_pModel->indices->buffer, 0, VK_INDEX_TYPE_UINT32);
+	for (Node* node : a_pModel->nodes) {
+		DrawNode(node, commandBuffer);
 	}
 }
 
-void Model::calculateBoundingBox(Node* node, Node* parent) {
-	BoundingBox parentBvh = parent ? parent->bvh : BoundingBox(dimensions.min, dimensions.max);
+void CalculateBoundingBox(Node* node, Node* parent, Model* a_pModel) {
+	BoundingBox parentBvh = parent ? parent->bvh : BoundingBox(a_pModel->dimensions.min, a_pModel->dimensions.max);
 
 	if (node->mesh) {
 		if (node->mesh->bb.valid) {
@@ -857,45 +879,47 @@ void Model::calculateBoundingBox(Node* node, Node* parent) {
 	parentBvh.max = glm::min(parentBvh.max, node->bvh.max);
 
 	for (Node* child : node->children) {
-		calculateBoundingBox(child, node);
+		CalculateBoundingBox(child, node, a_pModel);
 	}
 }
 
-void Model::getSceneDimensions()
+void GetSceneDimensions(Model* a_pModel)
 {
 	// Calculate binary volume hierarchy for all nodes in the scene
-	for (Node* node : linearNodes) {
-		calculateBoundingBox(node, nullptr);
+	for (Node* node : a_pModel->linearNodes) {
+		CalculateBoundingBox(node, nullptr, a_pModel);
 	}
 
-	dimensions.min = glm::vec3(FLT_MAX);
-	dimensions.max = glm::vec3(-FLT_MAX);
+	a_pModel->dimensions.min = glm::vec3(FLT_MAX);
+	a_pModel->dimensions.max = glm::vec3(-FLT_MAX);
 
-	for (Node* node : linearNodes) {
+	for (Node* node : a_pModel->linearNodes) {
 		if (node->bvh.valid) {
-			dimensions.min = glm::min(dimensions.min, node->bvh.min);
-			dimensions.max = glm::max(dimensions.max, node->bvh.max);
+			a_pModel->dimensions.min = glm::min(a_pModel->dimensions.min, node->bvh.min);
+			a_pModel->dimensions.max = glm::max(a_pModel->dimensions.max, node->bvh.max);
 		}
 	}
 
 	// Calculate scene aabb
-	aabb = glm::scale(glm::mat4(1.0f), glm::vec3(dimensions.max[0] - dimensions.min[0], dimensions.max[1] - dimensions.min[1], dimensions.max[2] - dimensions.min[2]));
-	aabb[3][0] = dimensions.min[0];
-	aabb[3][1] = dimensions.min[1];
-	aabb[3][2] = dimensions.min[2];
+	a_pModel->aabb = glm::scale(glm::mat4(1.0f), glm::vec3(a_pModel->dimensions.max[0] - a_pModel->dimensions.min[0],
+		a_pModel->dimensions.max[1] - a_pModel->dimensions.min[1],
+		a_pModel->dimensions.max[2] - a_pModel->dimensions.min[2]));
+	a_pModel->aabb[3][0] = a_pModel->dimensions.min[0];
+	a_pModel->aabb[3][1] = a_pModel->dimensions.min[1];
+	a_pModel->aabb[3][2] = a_pModel->dimensions.min[2];
 }
 
-void Model::updateAnimation(uint32_t index, float time)
+void UpdateAnimation(uint32_t index, float time, Model* a_pModel)
 {
-	if (animations.empty()) {
+	if (a_pModel->animations.empty()) {
 		LOG(LogSeverity::INFO, ".glTF does not contain animation.");
 		return;
 	}
-	if (index > static_cast<uint32_t>(animations.size()) - 1) {
+	if (index > static_cast<uint32_t>(a_pModel->animations.size()) - 1) {
 		LOG(LogSeverity::INFO, "No animation with index %d", index);
 		return;
 	}
-	Animation& animation = animations[index];
+	Animation& animation = a_pModel->animations[index];
 
 	bool updated = false;
 	for (AnimationChannel channel : animation.channels) {
@@ -940,19 +964,19 @@ void Model::updateAnimation(uint32_t index, float time)
 		}
 	}
 	if (updated) {
-		for (Node* node : nodes) {
+		for (Node* node : a_pModel->nodes) {
 			node->update();
 		}
 	}
 }
 
-Node* Model::findNode(Node* parent, uint32_t index) {
+Node* FindNode(Node* parent, uint32_t index) {
 	Node* nodeFound = nullptr;
 	if (parent->index == index) {
 		return parent;
 	}
 	for (Node* child : parent->children) {
-		nodeFound = findNode(child, index);
+		nodeFound = FindNode(child, index);
 		if (nodeFound) {
 			break;
 		}
@@ -960,10 +984,10 @@ Node* Model::findNode(Node* parent, uint32_t index) {
 	return nodeFound;
 }
 
-Node* Model::nodeFromIndex(uint32_t index) {
+Node* NodeFromIndex(uint32_t index, Model* a_pModel) {
 	Node* nodeFound = nullptr;
-	for (Node* node : nodes) {
-		nodeFound = findNode(node, index);
+	for (Node* node : a_pModel->nodes) {
+		nodeFound = FindNode(node, index);
 		if (nodeFound) {
 			break;
 		}

@@ -17,7 +17,6 @@ struct Texture;
 struct Sampler;
 struct Buffer;
 struct DescriptorSet;
-struct CommandBuffer;
 struct Renderer;
 
 #define MAX_NUM_JOINTS 128u
@@ -27,31 +26,33 @@ struct BoundingBox
 	glm::vec3 min;
 	glm::vec3 max;
 	bool valid = false;
+
 	BoundingBox();
 	BoundingBox(glm::vec3 min, glm::vec3 max);
 	BoundingBox getAABB(glm::mat4 m);
 };
 
-struct ModelTexture
+struct TextureSampler
 {
-	Texture* texture;
-	Sampler* sampler;
+	Texture* texture = nullptr;
+	Sampler* sampler = nullptr;
 };
 
 struct Material
 {
-	enum AlphaMode { ALPHAMODE_OPAQUE, ALPHAMODE_MASK, ALPHAMODE_BLEND };
-	AlphaMode alphaMode = ALPHAMODE_OPAQUE;
+	enum class AlphaMode { ALPHAMODE_OPAQUE, ALPHAMODE_MASK, ALPHAMODE_BLEND };
+	AlphaMode alphaMode = AlphaMode::ALPHAMODE_OPAQUE;
 	float alphaCutoff = 1.0f;
 	float metallicFactor = 1.0f;
 	float roughnessFactor = 1.0f;
 	glm::vec4 baseColorFactor = glm::vec4(1.0f);
 	glm::vec4 emissiveFactor = glm::vec4(1.0f);
-	ModelTexture* baseColorTexture;
-	ModelTexture* metallicRoughnessTexture;
-	ModelTexture* normalTexture;
-	ModelTexture* occlusionTexture;
-	ModelTexture* emissiveTexture;
+	TextureSampler* baseColorTexture = nullptr;
+	TextureSampler* metallicRoughnessTexture = nullptr;
+	TextureSampler* normalTexture = nullptr;
+	TextureSampler* occlusionTexture = nullptr;
+	TextureSampler* emissiveTexture = nullptr;
+
 	struct TexCoordSets
 	{
 		uint8_t baseColor = 0;
@@ -61,18 +62,21 @@ struct Material
 		uint8_t occlusion = 0;
 		uint8_t emissive = 0;
 	} texCoordSets;
+
 	struct Extension
 	{
-		ModelTexture* specularGlossinessTexture;
-		ModelTexture* diffuseTexture;
+		TextureSampler* specularGlossinessTexture = nullptr;
+		TextureSampler* diffuseTexture = nullptr;
 		glm::vec4 diffuseFactor = glm::vec4(1.0f);
 		glm::vec3 specularFactor = glm::vec3(0.0f);
 	} extension;
+
 	struct PbrWorkflows
 	{
 		bool metallicRoughness = true;
 		bool specularGlossiness = false;
 	} pbrWorkflows;
+
 	DescriptorSet* descriptorSet = nullptr;
 	uint32_t indexInDescriptorSet = 0;
 };
@@ -84,23 +88,26 @@ struct Primitive {
 	Material& material;
 	bool hasIndices;
 	BoundingBox bb;
+
 	Primitive(uint32_t firstIndex, uint32_t indexCount, uint32_t vertexCount, Material& material);
 	void setBoundingBox(glm::vec3 min, glm::vec3 max);
 };
 
 struct Mesh {
-	Renderer* pRenderer;
+	Renderer* pRenderer = nullptr;
 	std::vector<Primitive*> primitives;
 	BoundingBox bb;
 	BoundingBox aabb;
-	Buffer* uniformBuffer;
+	Buffer* uniformBuffer = nullptr;
 	DescriptorSet* descriptorSet = nullptr;
 	uint32_t indexInDescriptorSet = 0;
+
 	struct UniformBlock {
 		glm::mat4 matrix;
 		glm::mat4 jointMatrix[MAX_NUM_JOINTS]{};
 		float jointcount{ 0 };
 	} uniformBlock;
+
 	Mesh(Renderer* pRenderer, glm::mat4 matrix);
 	~Mesh();
 	void setBoundingBox(glm::vec3 min, glm::vec3 max);
@@ -114,13 +121,13 @@ struct Skin {
 };
 
 struct Node {
-	Node* parent;
+	Node* parent = nullptr;
 	uint32_t index;
 	std::vector<Node*> children;
 	glm::mat4 matrix;
 	std::string name;
-	Mesh* mesh;
-	Skin* skin;
+	Mesh* mesh = nullptr;
+	Skin* skin = nullptr;
 	int32_t skinIndex = -1;
 	glm::vec3 translation{};
 	glm::vec3 scale{ 1.0f };
@@ -137,7 +144,7 @@ struct AnimationChannel
 {
 	enum PathType { TRANSLATION, ROTATION, SCALE };
 	PathType path;
-	Node* node;
+	Node* node = nullptr;
 	uint32_t samplerIndex;
 };
 
@@ -160,7 +167,7 @@ struct Animation
 
 struct Model
 {
-	Renderer* pRenderer;
+	Renderer* pRenderer = nullptr;
 
 	struct Vertex
 	{
@@ -172,8 +179,8 @@ struct Model
 		glm::vec4 weight0;
 	};
 
-	Buffer* vertices;
-	Buffer* indices;
+	Buffer* vertices = nullptr;
+	Buffer* indices = nullptr;
 
 	glm::mat4 aabb;
 
@@ -182,8 +189,8 @@ struct Model
 
 	std::vector<Skin*> skins;
 
-	std::vector<ModelTexture*> textures;
-	std::vector<Sampler*> textureSamplers;
+	std::vector<TextureSampler*> textures;
+	std::vector<Sampler*> samplers;
 	std::vector<Material> materials;
 	std::vector<Animation> animations;
 	std::vector<std::string> extensions;
@@ -193,20 +200,7 @@ struct Model
 		glm::vec3 min = glm::vec3(FLT_MAX);
 		glm::vec3 max = glm::vec3(-FLT_MAX);
 	} dimensions;
-
-	void destroy();
-	void loadNode(Node* parent, const tinygltf::Node& node, uint32_t nodeIndex, const tinygltf::Model& model, std::vector<uint32_t>& indexBuffer, std::vector<Vertex>& vertexBuffer, float globalscale);
-	void loadSkins(tinygltf::Model& gltfModel);
-	void loadTextures(Renderer* pRenderer, tinygltf::Model& gltfModel);
-	void loadTextureSamplers(tinygltf::Model& gltfModel);
-	void loadMaterials(tinygltf::Model& gltfModel);
-	void loadAnimations(tinygltf::Model& gltfModel);
-	void loadFromFile(Renderer* pRenderer, std::string filename, float scale = 1.0f);
-	void drawNode(Node* node, CommandBuffer* commandBuffer);
-	void draw(CommandBuffer* commandBuffer);
-	void calculateBoundingBox(Node* node, Node* parent);
-	void getSceneDimensions();
-	void updateAnimation(uint32_t index, float time);
-	Node* findNode(Node* parent, uint32_t index);
-	Node* nodeFromIndex(uint32_t index);
 };
+
+void CreateModelFromFile(Renderer* a_pRenderer, std::string filename, Model* a_pModel, float scale = 1.0f);
+void DestroyModel(Model* a_pModel);
