@@ -347,7 +347,7 @@ public:
 
 			pResDesc->desc.descriptors[0] =
 			{
-				(uint32_t)DescriptorUpdateFrequency::NONE,	// set
+				(uint32_t)DescriptorUpdateFrequency::SET_0,	// set
 				{
 					0,										// binding
 					VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,		// type
@@ -359,7 +359,7 @@ public:
 			};
 			pResDesc->desc.descriptors[1] =
 			{
-				(uint32_t)DescriptorUpdateFrequency::NONE,			// set
+				(uint32_t)DescriptorUpdateFrequency::SET_0,			// set
 				{
 					1,												// binding
 					VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,		// type
@@ -371,7 +371,7 @@ public:
 			};
 			CreateResourceDescriptor(pRenderer, &pResDesc);
 
-			pDescriptorSet->desc = { pResDesc, DescriptorUpdateFrequency::NONE, pRenderer->maxInFlightFrames };
+			pDescriptorSet->desc = { pResDesc, DescriptorUpdateFrequency::SET_0, pRenderer->maxInFlightFrames };
 			CreateDescriptorSet(pRenderer, &pDescriptorSet);
 
 			{
@@ -397,31 +397,31 @@ public:
 			// Set 0
 			pPBRResDesc->desc.descriptors[0] =
 			{
-				(uint32_t)DescriptorUpdateFrequency::NONE,
+				(uint32_t)DescriptorUpdateFrequency::SET_0,
 				{ 0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, nullptr },
 				"UniformBufferObject"
 			};
 			pPBRResDesc->desc.descriptors[1] =
 			{
-				(uint32_t)DescriptorUpdateFrequency::NONE,
+				(uint32_t)DescriptorUpdateFrequency::SET_0,
 				{ 1, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr },
 				"UBOParams"
 			};
 			/*pPBRResDesc->desc.descriptors[2] =
 			{
-				(uint32_t)DescriptorUpdateFrequency::NONE,
+				(uint32_t)DescriptorUpdateFrequency::SET_0,
 				{ 2, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr },
 				"samplerIrradiance"
 			};
 			pPBRResDesc->desc.descriptors[3] =
 			{
-				(uint32_t)DescriptorUpdateFrequency::NONE,
+				(uint32_t)DescriptorUpdateFrequency::SET_0,
 				{ 3, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr },
 				"prefilteredMap"
 			};
 			pPBRResDesc->desc.descriptors[4] =
 			{
-				(uint32_t)DescriptorUpdateFrequency::NONE,
+				(uint32_t)DescriptorUpdateFrequency::SET_0,
 				{ 4, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr },
 				"samplerBRDFLUT"
 			};*/
@@ -439,7 +439,7 @@ public:
 			{
 				pPBRResDesc->desc.descriptors[i+2] =
 				{
-					(uint32_t)DescriptorUpdateFrequency::PER_FRAME,	// set
+					(uint32_t)DescriptorUpdateFrequency::SET_1,	// set
 					{
 						i,											// binding
 						VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,	// type
@@ -452,7 +452,7 @@ public:
 			}
 			pPBRResDesc->desc.descriptors[7] =
 			{
-				(uint32_t)DescriptorUpdateFrequency::PER_BATCH,	// set
+				(uint32_t)DescriptorUpdateFrequency::SET_2,	// set
 				{
 					0,											// binding
 					VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,			// type
@@ -473,7 +473,7 @@ public:
 
 			CreateResourceDescriptor(pRenderer, &pPBRResDesc);
 
-			pSceneDescriptorSet->desc = { pPBRResDesc, DescriptorUpdateFrequency::NONE, (uint32_t)pRenderer->maxInFlightFrames };
+			pSceneDescriptorSet->desc = { pPBRResDesc, DescriptorUpdateFrequency::SET_0, (uint32_t)pRenderer->maxInFlightFrames };
 			CreateDescriptorSet(pRenderer, &pSceneDescriptorSet);
 
 			{
@@ -502,7 +502,7 @@ public:
 				}
 			}
 
-			pMaterialDescriptorSet->desc = { pPBRResDesc, DescriptorUpdateFrequency::PER_FRAME, (uint32_t)scene.materials.size() };
+			pMaterialDescriptorSet->desc = { pPBRResDesc, DescriptorUpdateFrequency::SET_1, (uint32_t)scene.materials.size() };
 			CreateDescriptorSet(pRenderer, &pMaterialDescriptorSet);
 
 			{
@@ -571,7 +571,7 @@ public:
 				}
 			}
 
-			pNodeDescriptorSet->desc = { pPBRResDesc, DescriptorUpdateFrequency::PER_BATCH, (uint32_t)scene.linearNodes.size() };
+			pNodeDescriptorSet->desc = { pPBRResDesc, DescriptorUpdateFrequency::SET_2, (uint32_t)scene.linearNodes.size() };
 			CreateDescriptorSet(pRenderer, &pNodeDescriptorSet);
 
 			uint32_t nodeCounter = 0;

@@ -28,8 +28,8 @@ struct BoundingBox
 	bool valid = false;
 
 	BoundingBox();
-	BoundingBox(glm::vec3 min, glm::vec3 max);
-	BoundingBox getAABB(glm::mat4 m);
+	BoundingBox(glm::vec3 a_vMin, glm::vec3 a_vMax);
+	BoundingBox getAABB(glm::mat4 a_mM);
 };
 
 struct TextureSampler
@@ -89,8 +89,8 @@ struct Primitive {
 	bool hasIndices;
 	BoundingBox bb;
 
-	Primitive(uint32_t firstIndex, uint32_t indexCount, uint32_t vertexCount, Material& material);
-	void setBoundingBox(glm::vec3 min, glm::vec3 max);
+	Primitive(uint32_t a_uFirstIndex, uint32_t a_uIndexCount, uint32_t a_uVertexCount, Material& a_Material);
+	void setBoundingBox(glm::vec3 a_vMin, glm::vec3 a_vMax);
 };
 
 struct Mesh {
@@ -108,9 +108,9 @@ struct Mesh {
 		float jointcount{ 0 };
 	} uniformBlock;
 
-	Mesh(Renderer* pRenderer, glm::mat4 matrix);
+	Mesh(Renderer* a_pRenderer, glm::mat4 a_mMatrix);
 	~Mesh();
-	void setBoundingBox(glm::vec3 min, glm::vec3 max);
+	void setBoundingBox(glm::vec3 a_vMin, glm::vec3 a_vMax);
 };
 
 struct Skin {
@@ -202,5 +202,5 @@ struct Model
 	} dimensions;
 };
 
-void CreateModelFromFile(Renderer* a_pRenderer, std::string filename, Model* a_pModel, float scale = 1.0f);
+void CreateModelFromFile(Renderer* a_pRenderer, std::string a_sFilename, Model* a_pModel, float a_fScale = 1.0f);
 void DestroyModel(Model* a_pModel);

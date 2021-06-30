@@ -163,10 +163,10 @@ struct CommandBuffer
 
 enum class DescriptorUpdateFrequency
 {
-	NONE = 0,
-	PER_FRAME,
-	PER_BATCH,
-	PER_DRAW,
+	SET_0 = 0,
+	SET_1,
+	SET_2,
+	SET_3,
 	COUNT,
 };
 
@@ -235,7 +235,7 @@ struct DescriptorSetDesc
 	uint32_t					descriptorSetCount;
 
 	DescriptorSetDesc() :
-		pResourceDescriptor(nullptr), updateFrequency(DescriptorUpdateFrequency::NONE), descriptorSetCount(0)
+		pResourceDescriptor(nullptr), updateFrequency(DescriptorUpdateFrequency::SET_0), descriptorSetCount(0)
 	{}
 
 	DescriptorSetDesc(ResourceDescriptor* a_pResourceDescriptor, DescriptorUpdateFrequency a_eUpdateFrequency, uint32_t a_uDescriptorSetCount) :
