@@ -12,6 +12,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\..\..\..\src\App\main.cpp" />
+    <ClCompile Include="..\..\..\..\src\App\RenderSystem.cpp" />
     <ClCompile Include="..\..\..\..\src\Engine\OS\Android\android_native_app_glue.c" />
   </ItemGroup>
   <ItemGroup>

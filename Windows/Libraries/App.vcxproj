@@ -90,12 +90,16 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="..\..\src\App\main.cpp" />
+    <ClCompile Include="..\..\src\App\RenderSystem.cpp" />
   </ItemGroup>
   <ItemGroup>
     <None Include="..\..\src\App\Resources\Shaders\basic.frag" />
     <None Include="..\..\src\App\Resources\Shaders\basic.vert" />
     <None Include="..\..\src\App\Resources\Shaders\pbr.frag" />
     <None Include="..\..\src\App\Resources\Shaders\pbr.vert" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="..\..\src\App\RenderSystem.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

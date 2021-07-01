@@ -39,6 +39,9 @@
     <ClInclude Include="..\..\src\Engine\ModelLoader.h">
       <Filter>Source Files\Renderer</Filter>
     </ClInclude>
+    <ClInclude Include="..\..\src\Engine\FrameRateController.h">
+      <Filter>Source Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\..\src\Engine\OS\Android\AndroidFileSystem.cpp">
@@ -61,6 +64,9 @@
     </ClCompile>
     <ClCompile Include="..\..\src\Engine\Renderer\GltfModelLoader.cpp">
       <Filter>Source Files\Renderer</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\Engine\FrameRateController.cpp">
+      <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
 </Project>

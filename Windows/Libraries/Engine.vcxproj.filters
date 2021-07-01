@@ -43,6 +43,9 @@
     <ClInclude Include="..\..\src\Engine\App.h">
       <Filter>Source Files</Filter>
     </ClInclude>
+    <ClInclude Include="..\..\src\Engine\FrameRateController.h">
+      <Filter>Source Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\..\src\Engine\OS\Windows\WindowsMain.cpp">
@@ -65,6 +68,9 @@
     </ClCompile>
     <ClCompile Include="..\..\src\Engine\Renderer\GltfModelLoader.cpp">
       <Filter>Source Files\Renderer</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\Engine\FrameRateController.cpp">
+      <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
 </Project>
