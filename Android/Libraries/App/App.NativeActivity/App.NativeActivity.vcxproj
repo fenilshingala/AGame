@@ -11,15 +11,28 @@
     </ProjectConfiguration>
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="..\..\..\..\src\App\AppRenderer.cpp" />
+    <ClCompile Include="..\..\..\..\src\App\Components\ModelComponent.cpp" />
+    <ClCompile Include="..\..\..\..\src\App\Components\PositionComponent.cpp" />
     <ClCompile Include="..\..\..\..\src\App\main.cpp" />
-    <ClCompile Include="..\..\..\..\src\App\RenderSystem.cpp" />
+    <ClCompile Include="..\..\..\..\src\App\Serializer.cpp" />
+    <ClCompile Include="..\..\..\..\src\App\Systems\ModelRenderSystem.cpp" />
     <ClCompile Include="..\..\..\..\src\Engine\OS\Android\android_native_app_glue.c" />
   </ItemGroup>
   <ItemGroup>
+    <None Include="..\..\..\..\src\App\Resources\Levels\Sample.json" />
     <None Include="..\..\..\..\src\App\Resources\Shaders\basic.frag" />
     <None Include="..\..\..\..\src\App\Resources\Shaders\basic.vert" />
     <None Include="..\..\..\..\src\App\Resources\Shaders\pbr.frag" />
     <None Include="..\..\..\..\src\App\Resources\Shaders\pbr.vert" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="..\..\..\..\src\App\AppRenderer.h" />
+    <ClInclude Include="..\..\..\..\src\App\Components\ModelComponent.h" />
+    <ClInclude Include="..\..\..\..\src\App\Components\PositionComponent.h" />
+    <ClInclude Include="..\..\..\..\src\App\Serializer.h" />
+    <ClInclude Include="..\..\..\..\src\App\Systems.h" />
+    <ClInclude Include="..\..\..\..\src\App\Systems\ModelRenderSystem.h" />
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <ProjectGuid>{e1d1a7c0-07b5-4c61-ad3c-f3a2cae3b66f}</ProjectGuid>
@@ -80,7 +93,8 @@
     <PostBuildEvent>
       <Command>$(systemroot)\System32\xcopy $(SolutionDir)..\src\App\Resources\Shaders\*.* $(OutDir)Package\$(RootNamespace)\assets\Shaders\ /y
 $(systemroot)\System32\xcopy $(SolutionDir)..\src\App\Resources\Textures\*.* $(OutDir)Package\$(RootNamespace)\assets\Textures\ /y
-$(systemroot)\System32\xcopy $(SolutionDir)..\src\App\Resources\Models\*.* $(OutDir)Package\$(RootNamespace)\assets\Models\ /y /s</Command>
+$(systemroot)\System32\xcopy $(SolutionDir)..\src\App\Resources\Models\*.* $(OutDir)Package\$(RootNamespace)\assets\Models\ /y /s
+$(systemroot)\System32\xcopy $(SolutionDir)..\src\App\Resources\Levels\*.* $(OutDir)Package\$(RootNamespace)\assets\Levels\ /y /s</Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|ARM64'">
@@ -96,7 +110,9 @@ $(systemroot)\System32\xcopy $(SolutionDir)..\src\App\Resources\Models\*.* $(Out
     </Link>
     <PostBuildEvent>
       <Command>$(systemroot)\System32\xcopy $(SolutionDir)..\src\App\Resources\Shaders\*.* $(OutDir)Package\$(RootNamespace)\assets\Shaders\ /y
-$(systemroot)\System32\xcopy $(SolutionDir)..\src\App\Resources\Textures\*.* $(OutDir)Package\$(RootNamespace)\assets\Textures\ /y</Command>
+$(systemroot)\System32\xcopy $(SolutionDir)..\src\App\Resources\Textures\*.* $(OutDir)Package\$(RootNamespace)\assets\Textures\ /y
+$(systemroot)\System32\xcopy $(SolutionDir)..\src\App\Resources\Models\*.* $(OutDir)Package\$(RootNamespace)\assets\Models\ /y /s
+$(systemroot)\System32\xcopy $(SolutionDir)..\src\App\Resources\Levels\*.* $(OutDir)Package\$(RootNamespace)\assets\Levels\ /y /s</Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

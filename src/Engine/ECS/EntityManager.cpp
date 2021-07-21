@@ -11,15 +11,16 @@ EntityManager::EntityManager()
 
 EntityManager::~EntityManager()
 {
-	for (auto entity : mEntities)
+	for (std::pair<EntityID, Entity*> entity : mEntities)
 	{
-		entity.second->~Entity();
+		delete entity.second;
 	}
+	mEntities.clear();
 }
 
 Entity::~Entity()
 {
-	for (auto component : mComponents)
+	for (std::pair<uint32, Component*> component : mComponents)
 	{
 		Component* pComponent = component.second;
 
@@ -30,8 +31,9 @@ Entity::~Entity()
 			itr->second.remove(pComponent);
 		}
 
-		pComponent->~Component();
+		delete pComponent;
 	}
+	mComponents.clear();
 }
 
 void Entity::AddComponent(Component* component)

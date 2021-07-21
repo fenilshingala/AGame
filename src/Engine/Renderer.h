@@ -344,9 +344,10 @@ struct DefaultResources
 {
 	Buffer	defaultBuffer;
 	Texture defaultImage;
+	Sampler defaultSampler;
 
 	DefaultResources():
-		defaultBuffer(), defaultImage()
+		defaultBuffer(), defaultImage(), defaultSampler()
 	{}
 };
 
@@ -408,7 +409,7 @@ void DestroySampler(Renderer* a_pRenderer, Sampler** a_ppSampler);
 
 void CreateBuffer(Renderer* a_pRenderer, Buffer** a_ppBuffer);
 void DestroyBuffer(Renderer* a_pRenderer, Buffer** a_ppBuffer);
-void UpdateBuffer(Renderer* a_pRenderer, Buffer* a_pBuffer, void* a_pData, uint64_t a_uSize);
+void UpdateBuffer(Renderer* a_pRenderer, Buffer* a_pBuffer, void* a_pData, uint64_t a_uSize, uint32_t a_uOffset = 0);
 
 void CreateRenderPass(Renderer* a_pRenderer, LoadActionsDesc* pLoadActions, RenderPass** a_ppRenderPass);
 void DestroyRenderPass(Renderer* a_pRenderer, RenderPass** a_ppRenderPass);
@@ -438,7 +439,7 @@ void EndCommandBuffer(CommandBuffer* a_pCommandBuffer);
 void SetViewport(CommandBuffer* a_pCommandBuffer, float a_fX, float a_fY, float a_fWidth, float a_fHeight, float a_fMinDepth, float a_fMaxDepth);
 void SetScissors(CommandBuffer* a_pCommandBuffer, uint32_t a_uX, uint32_t a_uY, uint32_t a_uWidth, uint32_t a_uHeight);
 void BindPipeline(CommandBuffer* a_pCommandBuffer, Pipeline* a_pPipeline);
-void BindDescriptorSet(CommandBuffer* a_pCommandBuffer, uint32_t a_uIndex, DescriptorSet* a_pDescriptorSet);
+void BindDescriptorSet(CommandBuffer* a_pCommandBuffer, uint32_t a_uIndex, DescriptorSet* a_pDescriptorSet, uint32_t a_uDynamicOffsetCount = 0, const uint32_t* a_uOffsets = NULL);
 void BindVertexBuffers(CommandBuffer* a_pCommandBuffer, uint32_t a_uCount, Buffer** a_ppBuffers);
 void BindIndexBuffer(CommandBuffer* a_pCommandBuffer, Buffer* a_pBuffer, VkIndexType a_IndexType);
 void BindPushConstants(CommandBuffer* a_pCommandBuffer, ResourceDescriptor* a_pResourceDescriptor, const char* name, const void* pConstants);

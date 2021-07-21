@@ -9,21 +9,20 @@ layout (location = 3) in vec2 inUV1;
 // Scene bindings
 
 layout (set = 0, binding = 0) uniform UniformBufferObject {
-	mat4 model;
 	mat4 view;
 	mat4 projection;
 	//vec3 camPos;
 } ubo;
 
-layout (set = 0, binding = 1) uniform UBOParams {
-	vec4 lightDir;
-	float exposure;
-	float gamma;
-	float prefilteredCubeMipLevels;
-	float scaleIBLAmbient;
-	float debugViewInputs;
-	float debugViewEquation;
-} uboParams;
+//layout (set = 0, binding = 1) uniform UBOParams {
+//	vec4 lightDir;
+//	float exposure;
+//	float gamma;
+//	float prefilteredCubeMipLevels;
+//	float scaleIBLAmbient;
+//	float debugViewInputs;
+//	float debugViewEquation;
+//} uboParams;
 
 //layout (set = 0, binding = 2) uniform samplerCube samplerIrradiance;
 //layout (set = 0, binding = 3) uniform samplerCube prefilteredMap;
@@ -31,11 +30,11 @@ layout (set = 0, binding = 1) uniform UBOParams {
 
 // Material bindings
 
-layout (set = 1, binding = 0) uniform sampler2D colorMap;
-layout (set = 1, binding = 1) uniform sampler2D physicalDescriptorMap;
-layout (set = 1, binding = 2) uniform sampler2D normalMap;
-layout (set = 1, binding = 3) uniform sampler2D aoMap;
-layout (set = 1, binding = 4) uniform sampler2D emissiveMap;
+layout (set = 3, binding = 0) uniform sampler2D colorMap;
+layout (set = 3, binding = 1) uniform sampler2D physicalDescriptorMap;
+layout (set = 3, binding = 2) uniform sampler2D normalMap;
+layout (set = 3, binding = 3) uniform sampler2D aoMap;
+layout (set = 3, binding = 4) uniform sampler2D emissiveMap;
 
 layout (push_constant) uniform Material {
 	vec4 baseColorFactor;
@@ -94,14 +93,14 @@ vec3 Uncharted2Tonemap(vec3 color)
 	float W = 11.2;
 	return ((color*(A*color+C*B)+D*E)/(color*(A*color+B)+D*F))-E/F;
 }
-
+/*
 vec4 tonemap(vec4 color)
 {
 	vec3 outcol = Uncharted2Tonemap(color.rgb * uboParams.exposure);
 	outcol = outcol * (1.0f / Uncharted2Tonemap(vec3(11.2f)));	
 	return vec4(pow(outcol, vec3(1.0f / uboParams.gamma)), color.a);
 }
-
+*/
 vec4 SRGBtoLINEAR(vec4 srgbIn)
 {
 	#ifdef MANUAL_SRGB

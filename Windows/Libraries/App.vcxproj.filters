@@ -12,12 +12,33 @@
     <Filter Include="Resource Files\Shaders">
       <UniqueIdentifier>{ab86fc80-00d6-4f98-8d80-cb9e040e720d}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Resource Files\Levels">
+      <UniqueIdentifier>{fc53f0de-cdc3-45cd-ac5b-d187826042b8}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\Components">
+      <UniqueIdentifier>{6f3dc8ff-d47e-44fb-9961-2691f6e336ea}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\Systems">
+      <UniqueIdentifier>{fa6c2d43-55a4-4b9f-9eec-d25eca5b4624}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\..\src\App\main.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\App\RenderSystem.cpp">
+    <ClCompile Include="..\..\src\App\Serializer.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\App\Components\PositionComponent.cpp">
+      <Filter>Source Files\Components</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\App\Components\ModelComponent.cpp">
+      <Filter>Source Files\Components</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\App\Systems\ModelRenderSystem.cpp">
+      <Filter>Source Files\Systems</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\App\AppRenderer.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
@@ -34,9 +55,27 @@
     <None Include="..\..\src\App\Resources\Shaders\pbr.frag">
       <Filter>Resource Files\Shaders</Filter>
     </None>
+    <None Include="..\..\src\App\Resources\Levels\Sample.json">
+      <Filter>Resource Files\Levels</Filter>
+    </None>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="..\..\src\App\RenderSystem.h">
+    <ClInclude Include="..\..\src\App\Serializer.h">
+      <Filter>Source Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\App\Components\PositionComponent.h">
+      <Filter>Source Files\Components</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\App\Components\ModelComponent.h">
+      <Filter>Source Files\Components</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\App\Systems\ModelRenderSystem.h">
+      <Filter>Source Files\Systems</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\App\Systems.h">
+      <Filter>Source Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\App\AppRenderer.h">
       <Filter>Source Files</Filter>
     </ClInclude>
   </ItemGroup>

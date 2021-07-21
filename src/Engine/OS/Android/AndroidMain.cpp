@@ -1,6 +1,7 @@
 #include "../../App.h"
 #include "../../Platform.h"
 #include <unistd.h>
+#include <thread>
 
 static android_app* pAndroidApp = nullptr;
 static bool ready = false;
@@ -180,8 +181,18 @@ void AndroidMain(struct android_app* a_pAndroidApp, IApp* a_pApp)
         }
     } while (!initialized && !WindowShouldClose());
 
-    a_pApp->Update();
+    while (!WindowShouldClose())
+    {
+        if (pWindow->minimized)
+        {
+            std::this_thread::sleep_for(std::chrono::milliseconds(1));
+            continue;
+        }
 
+        a_pApp->Update();
+    }
+
+    pWindow->reset = true;
     if(ready)
         a_pApp->Unload();
     if(initialized)

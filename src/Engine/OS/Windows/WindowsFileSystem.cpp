@@ -44,7 +44,7 @@ FileHandle FileOpen(const char* a_sFilename, const char* a_sMode)
 	LOG_IF(a_sMode, LogSeverity::ERR, "Empty File Mode");
 
 	FILE* pFile = fopen(a_sFilename, a_sMode);
-	LOG_IF(pFile, LogSeverity::ERR, "Could not open file %s", a_sFilename);
+	LOG_IF(pFile, LogSeverity::WARNING, "Could not open file %s", a_sFilename);
 
 	return (FileHandle)pFile;
 }

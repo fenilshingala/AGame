@@ -121,6 +121,15 @@ void InitializeDefaultResources(Renderer* a_pRenderer)
 	pTexture->desc.height = 2;
 	pTexture->desc.initialLayout = VK_IMAGE_LAYOUT_GENERAL;
 	CreateTexture(a_pRenderer, &pTexture);
+
+	Sampler* pSampler = &(a_pRenderer->defaultResources.defaultSampler);
+	pSampler->desc.minFilter = VK_FILTER_LINEAR;
+	pSampler->desc.magFilter = VK_FILTER_LINEAR;
+	pSampler->desc.mipMapMode = VK_SAMPLER_MIPMAP_MODE_NEAREST;
+	pSampler->desc.addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER;
+	pSampler->desc.addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER;
+	pSampler->desc.addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER;
+	CreateSampler(a_pRenderer, &pSampler);
 }
 
 void DestroyDefaultResources(Renderer* a_pRenderer)
@@ -132,6 +141,9 @@ void DestroyDefaultResources(Renderer* a_pRenderer)
 
 	Texture* pTexture = &(a_pRenderer->defaultResources.defaultImage);
 	DestroyTexture(a_pRenderer, &pTexture);
+
+	Sampler* pSampler = &(a_pRenderer->defaultResources.defaultSampler);
+	DestroySampler(a_pRenderer, &pSampler);
 }
 
 #pragma region INSTANCE
@@ -1043,6 +1055,7 @@ void DestroySampler(Renderer* a_pRenderer, Sampler** a_ppSampler)
 	LOG_IF(a_pRenderer, LogSeverity::ERR, "a_pRenderer is NULL");
 	LOG_IF(*a_ppSampler, LogSeverity::ERR, "Value at a_ppSampler is NULL");
 	vkDestroySampler(a_pRenderer->device, (*a_ppSampler)->sampler, nullptr);
+	(*a_ppSampler)->sampler = VK_NULL_HANDLE;
 }
 
 bool hasStencilComponent(VkFormat format)
@@ -1288,7 +1301,7 @@ void DestroyBuffer(Renderer* a_pRenderer, Buffer** a_ppBuffer)
 	pBuffer->bufferMemory = VK_NULL_HANDLE;
 }
 
-void UpdateBuffer(Renderer* a_pRenderer, Buffer* a_pBuffer, void* a_pData, uint64_t a_uSize)
+void UpdateBuffer(Renderer* a_pRenderer, Buffer* a_pBuffer, void* a_pData, uint64_t a_uSize, uint32_t a_uOffset)
 {
 	if (!a_pData || (a_uSize <= 0))
 		return;
@@ -1297,7 +1310,7 @@ void UpdateBuffer(Renderer* a_pRenderer, Buffer* a_pBuffer, void* a_pData, uint6
 	LOG_IF(a_pBuffer, LogSeverity::ERR, "a_pBuffer is NULL");
 	
 	void* data;
-	vkMapMemory(a_pRenderer->device, a_pBuffer->bufferMemory, 0, a_uSize, 0, &data);
+	vkMapMemory(a_pRenderer->device, a_pBuffer->bufferMemory, a_uOffset, a_uSize, 0, &data);
 	memcpy(data, a_pData, (size_t)a_uSize);
 	vkUnmapMemory(a_pRenderer->device, a_pBuffer->bufferMemory);
 }
@@ -1629,6 +1642,7 @@ void CreateDescriptorSet(Renderer* a_pRenderer, DescriptorSet** a_ppDescriptorSe
 			switch (descriptorInfos[i].binding.descriptorType)
 			{
 			case VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER:
+			case VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC:
 				pUpdateData->mBufferInfo.buffer = a_pRenderer->defaultResources.defaultBuffer.buffer;
 				pUpdateData->mBufferInfo.range = a_pRenderer->defaultResources.defaultBuffer.desc.bufferSize;
 				break;
@@ -1689,6 +1703,7 @@ void UpdateDescriptorSet(Renderer* a_pRenderer, uint32_t index, DescriptorSet* a
 		switch (descInfo.binding.descriptorType)
 		{
 		case VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER:
+		case VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC:
 			pData->mBufferInfo = a_pDescriptorUpdateInfos[i].mBufferInfo;
 			break;
 		case VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE:
@@ -1704,14 +1719,16 @@ void UpdateDescriptorSet(Renderer* a_pRenderer, uint32_t index, DescriptorSet* a
 		a_pDescriptorSet->desc.pResourceDescriptor->descriptorUpdateTemplates[updateFrequency], pUpdateData);
 }
 
-void BindDescriptorSet(CommandBuffer* a_pCommandBuffer, uint32_t a_uIndex, DescriptorSet* a_pDescriptorSet)
+void BindDescriptorSet(CommandBuffer* a_pCommandBuffer, uint32_t a_uIndex, DescriptorSet* a_pDescriptorSet, uint32_t a_uDynamicOffsetCount, const uint32_t* a_uOffsets)
 {
 	LOG_IF(a_pDescriptorSet, LogSeverity::ERR, "a_pDescriptorSet is NULL");
+	if(a_uDynamicOffsetCount > 0)
+		LOG_IF(a_uOffsets != NULL, LogSeverity::ERR, "a_uOffsets is NULL");
 
 	ResourceDescriptor* pResourceDescriptor = a_pDescriptorSet->desc.pResourceDescriptor;
 	uint32_t updateFrequency = (uint32_t)a_pDescriptorSet->desc.updateFrequency;
 	vkCmdBindDescriptorSets(a_pCommandBuffer->commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pResourceDescriptor->pipelineLayout, updateFrequency, 1,
-		&a_pDescriptorSet->descriptorSets[a_uIndex], 0, NULL);
+		&a_pDescriptorSet->descriptorSets[a_uIndex], a_uDynamicOffsetCount, (a_uDynamicOffsetCount > 0) ? a_uOffsets : NULL);
 }
 
 #pragma endregion

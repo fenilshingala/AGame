@@ -13,7 +13,7 @@ void LoadNode(Node* parent, const tinygltf::Node& node, uint32_t nodeIndex, cons
 	std::vector<uint32_t>& indexBuffer, std::vector<Model::Vertex>& vertexBuffer, float globalscale, Model* a_pModel);
 void LoadSkins(tinygltf::Model& gltfModel, Model* a_pModel);
 void LoadTextures(Renderer* pRenderer, tinygltf::Model& gltfModel, Model* a_pModel);
-void LoadTextureSamplers(tinygltf::Model& gltfModel, Model* a_pModel);
+void LoadTextureSamplers(Renderer* a_pRenderer, tinygltf::Model& gltfModel, Model* a_pModel);
 void LoadMaterials(tinygltf::Model& gltfModel, Model* a_pModel);
 void LoadAnimations(tinygltf::Model& gltfModel, Model* a_pModel);
 void DrawNode(Node* node, CommandBuffer* commandBuffer);
@@ -183,7 +183,7 @@ void CreateModelFromFile(Renderer* a_pRenderer, std::string a_sFilename, Model* 
 	std::vector<Model::Vertex> vertexBuffer;
 
 	if (fileLoaded) {
-		LoadTextureSamplers(gltfModel, a_pModel);
+		LoadTextureSamplers(a_pRenderer, gltfModel, a_pModel);
 		LoadTextures(a_pModel->pRenderer, gltfModel, a_pModel);
 		LoadMaterials(gltfModel, a_pModel);
 		// TODO: scene handling with no default scene
@@ -251,12 +251,17 @@ void DestroyModel(Model* a_pModel)
 		DestroyBuffer(a_pModel->pRenderer, &a_pModel->indices);
 		a_pModel->indices->buffer = VK_NULL_HANDLE;
 	}
-	for (TextureSampler* texture : a_pModel->textures)
+	for (Sampler*& pSampler : a_pModel->samplers)
 	{
-		DestroyTexture(a_pModel->pRenderer, &texture->texture);
-		DestroySampler(a_pModel->pRenderer, &texture->sampler);
-		delete texture;
-		texture = nullptr;
+		DestroySampler(a_pModel->pRenderer, &pSampler);
+		delete pSampler;
+		pSampler = nullptr;
+	}
+	for (TextureSampler*& pTextureSampler : a_pModel->textures)
+	{
+		DestroyTexture(a_pModel->pRenderer, &pTextureSampler->texture);
+		delete pTextureSampler;
+		pTextureSampler = nullptr;
 	}
 	
 	a_pModel->textures.resize(0);
@@ -583,7 +588,6 @@ void LoadTextures(Renderer* a_pRenderer, tinygltf::Model& a_GltfModel, Model* a_
 		pTexture->desc.aspectBits = VK_IMAGE_ASPECT_COLOR_BIT;
 		pTexture->desc.initialLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 		CreateTexture(a_pRenderer, &pTexture);
-		CreateSampler(a_pRenderer, &pTextureSampler);
 		
 		TextureSampler* pModelTexture = new TextureSampler();
 		pModelTexture->texture = pTexture;
@@ -624,7 +628,7 @@ static VkFilter getVkFilterMode(int32_t a_iFilterMode)
 	return VK_FILTER_NEAREST;
 }
 
-void LoadTextureSamplers(tinygltf::Model& a_GltfModel, Model* a_pModel)
+void LoadTextureSamplers(Renderer* a_pRenderer, tinygltf::Model& a_GltfModel, Model* a_pModel)
 {
 	for (tinygltf::Sampler smpl : a_GltfModel.samplers)
 	{
@@ -634,6 +638,7 @@ void LoadTextureSamplers(tinygltf::Model& a_GltfModel, Model* a_pModel)
 		pSampler->desc.addressModeU = getVkWrapMode(smpl.wrapS);
 		pSampler->desc.addressModeV = getVkWrapMode(smpl.wrapT);
 		pSampler->desc.addressModeW = pSampler->desc.addressModeV;
+		CreateSampler(a_pRenderer, &pSampler);
 
 		a_pModel->samplers.push_back(pSampler);
 	}

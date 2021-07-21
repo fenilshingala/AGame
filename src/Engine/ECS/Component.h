@@ -53,6 +53,8 @@ public:
 
 	virtual void Init() = 0;
 	virtual void Exit() = 0;
+	virtual void Load() = 0;
+	virtual void Unload() = 0;
 
 	inline uint32_t GetOwnerID() { return mOwnerID; }
 	inline void SetOwnerID(uint32_t a_uID) { mOwnerID = a_uID; }

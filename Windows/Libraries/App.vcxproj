@@ -89,17 +89,27 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="..\..\src\App\AppRenderer.cpp" />
+    <ClCompile Include="..\..\src\App\Components\ModelComponent.cpp" />
+    <ClCompile Include="..\..\src\App\Components\PositionComponent.cpp" />
     <ClCompile Include="..\..\src\App\main.cpp" />
-    <ClCompile Include="..\..\src\App\RenderSystem.cpp" />
+    <ClCompile Include="..\..\src\App\Serializer.cpp" />
+    <ClCompile Include="..\..\src\App\Systems\ModelRenderSystem.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <None Include="..\..\src\App\Resources\Levels\Sample.json" />
     <None Include="..\..\src\App\Resources\Shaders\basic.frag" />
     <None Include="..\..\src\App\Resources\Shaders\basic.vert" />
     <None Include="..\..\src\App\Resources\Shaders\pbr.frag" />
     <None Include="..\..\src\App\Resources\Shaders\pbr.vert" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="..\..\src\App\RenderSystem.h" />
+    <ClInclude Include="..\..\src\App\AppRenderer.h" />
+    <ClInclude Include="..\..\src\App\Components\ModelComponent.h" />
+    <ClInclude Include="..\..\src\App\Components\PositionComponent.h" />
+    <ClInclude Include="..\..\src\App\Serializer.h" />
+    <ClInclude Include="..\..\src\App\Systems.h" />
+    <ClInclude Include="..\..\src\App\Systems\ModelRenderSystem.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

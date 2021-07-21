@@ -3,6 +3,7 @@
 
 #define WIN32_LEAN_AND_MEAN
 #include <Windows.h>
+#include <thread>
 
 // WINDOW
 static struct Window* pWindow = nullptr;
@@ -278,7 +279,19 @@ int WindowsMain(int argc, char** argv, IApp* pApp)
 {
 	pApp->Init();
 	pApp->Load();
-	pApp->Update();
+
+	while (!WindowShouldClose())
+	{
+		if (pWindow->minimized)
+		{
+			std::this_thread::sleep_for(std::chrono::milliseconds(1));
+			continue;
+		}
+
+		pApp->Update();
+	}
+	
+	pWindow->reset = true;
 	pApp->Unload();
 	pApp->Exit();
 
