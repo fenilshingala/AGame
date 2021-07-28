@@ -30,11 +30,13 @@ struct TextureDesc
 	std::string				filePath;
 	void*					rawData;
 	uint64_t				rawDataSize;
+	bool					mipMaps;
+	uint32_t				mipLevels;
 
 	TextureDesc() :
 		width(0), height(0), format(VK_FORMAT_UNDEFINED), tiling(VK_IMAGE_TILING_OPTIMAL), usage(VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT),
 		properties(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT), aspectBits(VK_IMAGE_ASPECT_COLOR_BIT), sampleCount(VK_SAMPLE_COUNT_1_BIT),
-		initialLayout(VK_IMAGE_LAYOUT_UNDEFINED), filePath(), rawData(nullptr), rawDataSize(0)
+		initialLayout(VK_IMAGE_LAYOUT_UNDEFINED), filePath(), rawData(nullptr), rawDataSize(0), mipMaps(false), mipLevels(-1)
 	{}
 };
 
@@ -402,7 +404,7 @@ void WaitDeviceIdle(Renderer* a_pRenderer);
 
 void CreateTexture(Renderer* a_pRenderer, Texture** a_ppTexture);
 void DestroyTexture(Renderer* a_pRenderer, Texture** a_ppTexture);
-void TransitionImageLayout(CommandBuffer* a_pCommandBuffer, Texture* a_pTexture, VkImageLayout oldLayout, VkImageLayout newLayout);
+void TransitionImageLayout(CommandBuffer* a_pCommandBuffer, Texture* a_pTexture, VkImageLayout oldLayout, VkImageLayout newLayout, uint32_t a_uBaseMipLevel = 0);
 
 void CreateSampler(Renderer* a_pRenderer, Sampler** a_ppSampler);
 void DestroySampler(Renderer* a_pRenderer, Sampler** a_ppSampler);

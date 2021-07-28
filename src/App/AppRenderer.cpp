@@ -98,6 +98,8 @@ void AppRenderer::Init(IApp* a_pApp)
 	pCamera = new Camera();
 	pRenderer = new Renderer();
 	pRenderer->window.pApp = a_pApp;
+	//pRenderer->window.posX = 10;
+	//pRenderer->window.posY = 10;
 	//pRenderer->window.width = 800;
 	//pRenderer->window.height = 600;
 	pRenderer->maxInFlightFrames = 3;

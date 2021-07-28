@@ -19,20 +19,24 @@ static char mCharBuffer[MAX_KEYS] = { 0 };
 static int mouseX = 0, mouseY = 0;
 static bool leftClickDown = false, rightClickDown = false;
 
-void UpdateWindowDimensions(Window* a_pWindow)
+bool UpdateWindowDimensions(Window** a_pWindow)
 {
-	HWND hwnd = (HWND)a_pWindow->pWindowHandle;
+	HWND hwnd = (HWND)(*a_pWindow)->pWindowHandle;
 	RECT clientRect;
 	GetClientRect(hwnd, &clientRect);
+
+	(*a_pWindow)->posX = (uint32_t)clientRect.left;
+	(*a_pWindow)->posY = (uint32_t)clientRect.top;
 	uint32_t width = uint32_t(clientRect.right - clientRect.left);
 	uint32_t height = uint32_t(clientRect.bottom - clientRect.top);
-
-	if (pWindow->width != width || pWindow->height != height)
+	if ((*a_pWindow)->width != width || (*a_pWindow)->height != height)
 	{
-		pWindow->width = width;
-		pWindow->height = height;
-		needsResize = true;
+		(*a_pWindow)->width = width;
+		(*a_pWindow)->height = height;
+		return true;
 	}
+
+	return false;
 }
 
 WPARAM MapLeftRightKeys(WPARAM vk, LPARAM lParam)
@@ -85,7 +89,7 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 		windowIsResizing = false;
 		if (!pWindow->fullScreen)
 		{
-			UpdateWindowDimensions(pWindow);
+			needsResize = UpdateWindowDimensions(&pWindow);
 		}
 		break;
 	}
@@ -98,7 +102,7 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 			pWindow->minimized = false;
 			if (!pWindow->fullScreen && !windowIsResizing)
 			{
-				UpdateWindowDimensions(pWindow);
+				needsResize = UpdateWindowDimensions(&pWindow);
 			}
 			break;
 		case SIZE_MINIMIZED:
@@ -186,6 +190,44 @@ void InitWindow(Window* a_pWindow)
 	wc.lpszClassName = CLASS_NAME;
 	RegisterClass(&wc);
 
+	uint32_t posX = CW_USEDEFAULT,
+			 posY = CW_USEDEFAULT,
+			 width = CW_USEDEFAULT,
+			 height = CW_USEDEFAULT;
+
+	// Default: 16:9 resolution ratio and 75% screen occupancy
+	if (a_pWindow->width == (uint32_t)-1 && a_pWindow->height == (uint32_t)-1)
+	{
+		int screenX = (int)GetSystemMetrics(SM_CXSCREEN);
+		int screenY = (int)GetSystemMetrics(SM_CYSCREEN);
+
+		float enforcedRatio = 16.0f / 9.0f;
+		width = (uint32_t)((float)screenX * 0.75f);
+		height = (uint32_t)((float)screenY * 0.75f);
+		if (width / height < enforcedRatio)
+		{
+			if (height < width)
+				height = (int)(width / enforcedRatio);
+			else
+				width = (int)(height * enforcedRatio);
+		}
+	}
+
+	// Default: Centered window
+	if (a_pWindow->posX == (uint32_t)-1 && a_pWindow->posY == (uint32_t)-1)
+	{
+		int screenX = (int)GetSystemMetrics(SM_CXSCREEN);
+		int screenY = (int)GetSystemMetrics(SM_CYSCREEN);
+
+		posX = (uint32_t)((float)screenX * 0.5f) - (uint32_t)((float)width / 2.0f);
+		posY = (uint32_t)((float)screenY * 0.5f) - (uint32_t)((float)height / 2.0f);
+	}
+
+	if (a_pWindow->posX != -1)		posX = a_pWindow->posX;
+	if (a_pWindow->posY != -1)		posY = a_pWindow->posY;
+	if (a_pWindow->width != -1)		width = a_pWindow->width;
+	if (a_pWindow->height != -1)	height = a_pWindow->height;
+
 	HWND hwnd = CreateWindowEx(
 		0,                              // Optional window styles.
 		CLASS_NAME,                     // Window class
@@ -193,7 +235,7 @@ void InitWindow(Window* a_pWindow)
 		WS_OVERLAPPEDWINDOW,            // Window style
 
 		// Size and position
-		CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT,
+		posX, posY, width, height,
 
 		NULL,       // Parent window    
 		NULL,       // Menu
@@ -208,13 +250,8 @@ void InitWindow(Window* a_pWindow)
 	}
 
 	a_pWindow->pWindowHandle = hwnd;
-	RECT clientRect;
-	GetClientRect(hwnd, &clientRect);
-	uint32_t width = uint32_t(clientRect.right - clientRect.left);
-	uint32_t height = uint32_t(clientRect.bottom - clientRect.top);
-	a_pWindow->width = width;
-	a_pWindow->height = height;
 	::pWindow = a_pWindow;
+	UpdateWindowDimensions(&pWindow);
 
 	ShowWindow(hwnd, SW_SHOW);
 }

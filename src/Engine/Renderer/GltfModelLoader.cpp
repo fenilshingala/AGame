@@ -584,9 +584,10 @@ void LoadTextures(Renderer* a_pRenderer, tinygltf::Model& a_GltfModel, Model* a_
 		pTexture->desc.tiling = VK_IMAGE_TILING_OPTIMAL;
 		pTexture->desc.sampleCount = VK_SAMPLE_COUNT_1_BIT;
 		pTexture->desc.properties = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
-		pTexture->desc.usage = VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
+		pTexture->desc.usage = VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
 		pTexture->desc.aspectBits = VK_IMAGE_ASPECT_COLOR_BIT;
 		pTexture->desc.initialLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+		pTexture->desc.mipMaps = true;
 		CreateTexture(a_pRenderer, &pTexture);
 		
 		TextureSampler* pModelTexture = new TextureSampler();
@@ -638,6 +639,7 @@ void LoadTextureSamplers(Renderer* a_pRenderer, tinygltf::Model& a_GltfModel, Mo
 		pSampler->desc.addressModeU = getVkWrapMode(smpl.wrapS);
 		pSampler->desc.addressModeV = getVkWrapMode(smpl.wrapT);
 		pSampler->desc.addressModeW = pSampler->desc.addressModeV;
+		pSampler->desc.mipMapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
 		CreateSampler(a_pRenderer, &pSampler);
 
 		a_pModel->samplers.push_back(pSampler);

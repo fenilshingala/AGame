@@ -36,7 +36,7 @@ void DestroyDefaultResources(Renderer* a_pRenderer);
 void BeginSingleTimeCommands(Renderer* a_pRenderer, CommandBuffer* a_pCommandBuffer);
 void EndSingleTimeCommands(Renderer* a_pRenderer, CommandBuffer* a_pCommandBuffer);
 
-VkImageView CreateImageView(Renderer* pRenderer, VkImage image, VkFormat format, VkImageAspectFlags aspectFlags);
+VkImageView CreateImageView(Renderer* pRenderer, Texture* a_pTexture);
 void CreateBufferUtil(Renderer* a_pRenderer, Buffer** a_ppBuffer);
 
 static std::unordered_map<uint32_t, VkRenderPass>	renderPasses;
@@ -698,7 +698,7 @@ void CreateSwapchain(Renderer** a_ppRenderer)
 		pRenderer->swapchainRenderTargets[i]->pTexture->desc.height = extent.height;
 		pRenderer->swapchainRenderTargets[i]->pTexture->desc.aspectBits = VK_IMAGE_ASPECT_COLOR_BIT;
 		pRenderer->swapchainRenderTargets[i]->pTexture->image = swapchainImages[i];
-		pRenderer->swapchainRenderTargets[i]->pTexture->imageView = CreateImageView(pRenderer, swapchainImages[i], surfaceFormat.format, VK_IMAGE_ASPECT_COLOR_BIT);
+		pRenderer->swapchainRenderTargets[i]->pTexture->imageView = CreateImageView(pRenderer, pRenderer->swapchainRenderTargets[i]->pTexture);
 
 		TransitionImageLayout(&cmdBfr, pRenderer->swapchainRenderTargets[i]->pTexture, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
 	}
@@ -867,18 +867,18 @@ uint32_t findMemoryType(Renderer* a_pRenderer, uint32_t typeFilter, VkMemoryProp
 	return -1;
 }
 
-VkImageView CreateImageView(Renderer* a_pRenderer, VkImage image, VkFormat format, VkImageAspectFlags aspectFlags)
+VkImageView CreateImageView(Renderer* a_pRenderer, Texture* a_pTexture)
 {
 	LOG_IF(a_pRenderer, LogSeverity::ERR, "a_pRenderer is NULL");
 
 	VkImageViewCreateInfo viewInfo = {};
 	viewInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
-	viewInfo.image = image;
+	viewInfo.image = a_pTexture->image;
 	viewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
-	viewInfo.format = format;
-	viewInfo.subresourceRange.aspectMask = aspectFlags;
+	viewInfo.format = a_pTexture->desc.format;
+	viewInfo.subresourceRange.aspectMask = a_pTexture->desc.aspectBits;
 	viewInfo.subresourceRange.baseMipLevel = 0;
-	viewInfo.subresourceRange.levelCount = 1;
+	viewInfo.subresourceRange.levelCount = a_pTexture->desc.mipLevels;
 	viewInfo.subresourceRange.baseArrayLayer = 0;
 	viewInfo.subresourceRange.layerCount = 1;
 
@@ -897,6 +897,14 @@ void CreateTextureUtil(Renderer* a_pRenderer, Texture** a_ppTexture)
 	VkImage image = {};
 	VkDeviceMemory imageMemory = {};
 
+	uint32_t mipLevels = (pTexture->desc.mipLevels == -1) ? 1 : pTexture->desc.mipLevels;
+	if (pTexture->desc.mipMaps && pTexture->desc.mipLevels == -1)
+	{
+		mipLevels = static_cast<uint32_t>(std::floor(
+			std::log2(pTexture->desc.width > pTexture->desc.height ? pTexture->desc.width : pTexture->desc.height) ))+ 1;
+	}
+	pTexture->desc.mipLevels = mipLevels;
+
 	VkImageCreateInfo imageInfo = {};
 	imageInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
 	imageInfo.imageType = VK_IMAGE_TYPE_2D;
@@ -904,7 +912,7 @@ void CreateTextureUtil(Renderer* a_pRenderer, Texture** a_ppTexture)
 	imageInfo.extent.height = pTexture->desc.height;
 	imageInfo.extent.depth = 1;
 	imageInfo.samples = pTexture->desc.sampleCount;
-	imageInfo.mipLevels = 1;
+	imageInfo.mipLevels = pTexture->desc.mipLevels;
 	imageInfo.arrayLayers = 1;
 	imageInfo.format = pTexture->desc.format;
 	imageInfo.tiling = pTexture->desc.tiling;
@@ -928,7 +936,7 @@ void CreateTextureUtil(Renderer* a_pRenderer, Texture** a_ppTexture)
 
 	pTexture->image = image;
 	pTexture->imageMemory = imageMemory;
-	pTexture->imageView = CreateImageView(a_pRenderer, image, pTexture->desc.format, pTexture->desc.aspectBits);
+	pTexture->imageView = CreateImageView(a_pRenderer, pTexture);
 }
 
 void CreateTexture(Renderer* a_pRenderer, Texture** a_ppTexture)
@@ -997,6 +1005,53 @@ void CreateTexture(Renderer* a_pRenderer, Texture** a_ppTexture)
 
 		CopyBufferToImage(a_pRenderer, pStagingBuffer->buffer, pTexture->image, texWidth, texHeight);
 
+		// Generate mipmaps
+		if (pTexture->desc.mipMaps)
+		{
+			int32_t mipWidth = texWidth;
+			int32_t mipHeight = texHeight;
+
+			uint32_t mipLevels = pTexture->desc.mipLevels;
+			pTexture->desc.mipLevels = 1;
+			CommandBuffer cmdBfr;
+			BeginSingleTimeCommands(a_pRenderer, &cmdBfr);
+			
+			for (uint32_t i = 1; i < mipLevels; i++)
+			{
+				TransitionImageLayout(&cmdBfr, pTexture, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, i-1);
+
+				VkImageBlit blit{};
+				blit.srcOffsets[0] = { 0, 0, 0 };
+				blit.srcOffsets[1] = { mipWidth, mipHeight, 1 };
+				blit.srcSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+				blit.srcSubresource.mipLevel = i - 1;
+				blit.srcSubresource.baseArrayLayer = 0;
+				blit.srcSubresource.layerCount = 1;
+				blit.dstOffsets[0] = { 0, 0, 0 };
+				blit.dstOffsets[1] = { mipWidth > 1 ? mipWidth / 2 : 1, mipHeight > 1 ? mipHeight / 2 : 1, 1 };
+				blit.dstSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+				blit.dstSubresource.mipLevel = i;
+				blit.dstSubresource.baseArrayLayer = 0;
+				blit.dstSubresource.layerCount = 1;
+
+				vkCmdBlitImage(cmdBfr.commandBuffer,
+					pTexture->image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+					pTexture->image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+					1, &blit,
+					VK_FILTER_LINEAR);
+			
+				TransitionImageLayout(&cmdBfr, pTexture, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, pTexture->desc.initialLayout, i - 1);
+
+				if (mipWidth > 1) mipWidth /= 2;
+				if (mipHeight > 1) mipHeight /= 2;
+			}
+
+			TransitionImageLayout(&cmdBfr, pTexture, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, pTexture->desc.initialLayout, mipLevels - 1);
+			EndSingleTimeCommands(a_pRenderer, &cmdBfr);
+			pTexture->desc.mipLevels = mipLevels;
+		}
+
+		else
 		{
 			CommandBuffer cmdBfr;
 			BeginSingleTimeCommands(a_pRenderer, &cmdBfr);
@@ -1063,7 +1118,7 @@ bool hasStencilComponent(VkFormat format)
 	return format == VK_FORMAT_D32_SFLOAT_S8_UINT || format == VK_FORMAT_D24_UNORM_S8_UINT;
 }
 
-void TransitionImageLayout(CommandBuffer* a_pCommandBuffer, Texture* a_pTexture, VkImageLayout oldLayout, VkImageLayout newLayout)
+void TransitionImageLayout(CommandBuffer* a_pCommandBuffer, Texture* a_pTexture, VkImageLayout oldLayout, VkImageLayout newLayout, uint32_t a_uBaseMipLevel)
 {
 	LOG_IF(a_pCommandBuffer, LogSeverity::ERR, "a_pCommandBuffer is NULL");
 	LOG_IF(a_pCommandBuffer->commandBuffer != VK_NULL_HANDLE, LogSeverity::ERR, "command buffer is VK_NULL_HANDLE");
@@ -1090,8 +1145,8 @@ void TransitionImageLayout(CommandBuffer* a_pCommandBuffer, Texture* a_pTexture,
 		barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
 	}
 
-	barrier.subresourceRange.baseMipLevel = 0;
-	barrier.subresourceRange.levelCount = 1;
+	barrier.subresourceRange.baseMipLevel = a_uBaseMipLevel;
+	barrier.subresourceRange.levelCount = a_pTexture->desc.mipLevels;
 	barrier.subresourceRange.baseArrayLayer = 0;
 	barrier.subresourceRange.layerCount = 1;
 

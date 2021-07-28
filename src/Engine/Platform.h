@@ -6,6 +6,8 @@
 class IApp;
 struct Window
 {
+	uint32_t posX;
+	uint32_t posY;
 	uint32_t width;
 	uint32_t height;
 	bool fullScreen;
@@ -15,7 +17,7 @@ struct Window
 	IApp* pApp;
 
 	Window() :
-		width(0), height(0), fullScreen(false), minimized(false), reset(true), pWindowHandle(nullptr), pApp(nullptr)
+		posX(-1), posY(-1), width(-1), height(-1), fullScreen(false), minimized(false), reset(true), pWindowHandle(nullptr), pApp(nullptr)
 	{}
 };
 
