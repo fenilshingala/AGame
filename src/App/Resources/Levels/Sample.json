@@ -1,4 +1,26 @@
 {
+  "Skybox": {
+    "PositionComponent": {
+      "x": 0.0,
+      "y": 0.0,
+      "z": 0.0,
+      "scaleX": 1.0,
+      "scaleY": 1.0,
+      "scaleZ": 1.0,
+      "rotation": 0.0,
+      "rotationAxisX": 0.0,
+      "rotationAxisY": 1.0,
+      "rotationAxisZ": 0.0
+    },
+    "SkyboxComponent": {
+      "rightTexPath": "Textures/Skybox/right.png",
+      "leftTexPath": "Textures/Skybox/left.png",
+      "topTexPath": "Textures/Skybox/top.png",
+      "botTexPath": "Textures/Skybox/bottom.png",
+      "frontTexPath": "Textures/Skybox/front.png",
+      "backTexPath": "Textures/Skybox/back.png"
+    }
+  },
   "Entity0": {
     "PositionComponent": {
       "x": -1.0,

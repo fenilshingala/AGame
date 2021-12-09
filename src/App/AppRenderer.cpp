@@ -10,6 +10,8 @@
 #include "../../include/glm/gtc/matrix_transform.hpp"
 
 #include "AppRenderer.h"
+#include "ResourceLoader.h"
+#include "Systems.h"
 
 #include "../Engine/Camera.h"
 #include "../Engine/Log.h"
@@ -34,7 +36,8 @@ struct ModelMatrixDynamicBuffer
 
 static const std::vector<std::pair<const char*, VkShaderStageFlagBits>> shaderList = {
 	{ "basic.vert", VK_SHADER_STAGE_VERTEX_BIT }, {"basic.frag", VK_SHADER_STAGE_FRAGMENT_BIT },
-	{ "pbr.vert", VK_SHADER_STAGE_VERTEX_BIT }, {"pbr.frag", VK_SHADER_STAGE_FRAGMENT_BIT }
+	{ "pbr.vert", VK_SHADER_STAGE_VERTEX_BIT }, {"pbr.frag", VK_SHADER_STAGE_FRAGMENT_BIT },
+	{ "skybox.vert", VK_SHADER_STAGE_VERTEX_BIT }, {"skybox.frag", VK_SHADER_STAGE_FRAGMENT_BIT }
 };
 
 #if defined(_WIN32)
@@ -113,12 +116,6 @@ void AppRenderer::Init(IApp* a_pApp)
 		cmdBfrs[i] = new(cmdBfrs[i]) CommandBuffer();
 	}
 
-	for (std::pair<const char*, VkShaderStageFlagBits> pair : shaderList)
-	{
-		ShaderModule* pShaderModule = new ShaderModule(pair.second);
-		shaderMap.insert({ (uint32_t)std::hash<std::string>{}(pair.first), pShaderModule });
-	}
-
 	ppSceneUniformBuffers = (Buffer**)malloc(pRenderer->maxInFlightFrames * sizeof(Buffer*));
 	Buffer* pUniformBufferPool = (Buffer*)malloc(sizeof(Buffer) * pRenderer->maxInFlightFrames);
 	for (uint32_t i = 0; i < pRenderer->maxInFlightFrames; ++i)
@@ -132,9 +129,11 @@ void AppRenderer::Init(IApp* a_pApp)
 		ppSceneBuffers[i] = new Buffer();*/
 
 	pPBRResDesc = new ResourceDescriptor(8);
-	pSceneDescriptorSet = new DescriptorSet();
-
 	pPBRPipeline = new Pipeline();
+	pSkyboxResDesc = new ResourceDescriptor(8);
+	pSkyboxPipeline = new Pipeline();
+
+	pSceneDescriptorSet = new DescriptorSet();
 	pDepthBuffer = new RenderTarget();
 	pDepthBuffer->pTexture = new Texture();
 }
@@ -143,9 +142,11 @@ void AppRenderer::Exit()
 {
 	delete pDepthBuffer->pTexture;
 	delete pDepthBuffer;
-	delete pPBRPipeline;
-
 	delete pSceneDescriptorSet;
+
+	delete pSkyboxPipeline;
+	delete pSkyboxResDesc;
+	delete pPBRPipeline;
 	delete pPBRResDesc;
 
 	/*for (uint32_t i = 0; i < pRenderer->maxInFlightFrames; ++i)
@@ -154,10 +155,6 @@ void AppRenderer::Exit()
 
 	free(ppSceneUniformBuffers[0]);
 	free(ppSceneUniformBuffers);
-
-	for (std::pair<uint32_t, ShaderModule*> shader : shaderMap)
-		delete shader.second;
-	shaderMap.clear();
 
 	free(cmdBfrs[0]);
 	free(cmdBfrs);
@@ -177,9 +174,9 @@ void AppRenderer::Load()
 
 		for (std::pair<const char*, VkShaderStageFlagBits> pair : shaderList)
 		{
-			ShaderModule*& pShaderModule = shaderMap[(uint32_t)std::hash<std::string>{}(pair.first)];
-			LOG_IF(pShaderModule, LogSeverity::ERR, "Shader module not allocated");
-			CreateShaderModule(pRenderer, (resourcePath + "Shaders/" + pair.first).c_str(), &pShaderModule);
+			ShaderModule* pShaderModule = new ShaderModule();
+			pShaderModule->stage = pair.second;
+			GetShaderModule(GetResourceLoader(), pair.first, &pShaderModule);
 		}
 
 		for (uint32_t i = 0; i < pRenderer->maxInFlightFrames; ++i)
@@ -193,6 +190,7 @@ void AppRenderer::Load()
 			CreateBuffer(pRenderer, &ppSceneUniformBuffers[i]);
 		}
 
+		/* ----------------------------------- PBR Resource Desc ----------------------------------- */
 		/*for (uint32_t i = 0; i < pRenderer->maxInFlightFrames; ++i)
 		{
 			ppSceneBuffers[i]->desc = {
@@ -253,7 +251,7 @@ void AppRenderer::Load()
 		};
 
 		// Set 3
-		const char* samplerNames[5] = {
+		const char* pbrSamplerNames[5] = {
 			"colorMap",
 			"physicalDescriptorMap",
 			"normalMap",
@@ -267,7 +265,7 @@ void AppRenderer::Load()
 			{
 				(uint32_t)DescriptorUpdateFrequency::SET_3,	
 				{ i, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr },
-				samplerNames[i]
+				pbrSamplerNames[i]
 			};
 		}
 
@@ -285,7 +283,32 @@ void AppRenderer::Load()
 
 		pSceneDescriptorSet->desc = { pPBRResDesc, DescriptorUpdateFrequency::SET_0, (uint32_t)pRenderer->maxInFlightFrames };
 		CreateDescriptorSet(pRenderer, &pSceneDescriptorSet);
+		/* ----------------------------------------------------------------------------------------- */
 
+		/* ----------------------------------- Skybox Resource Desc ----------------------------------- */
+		memcpy(pSkyboxResDesc->desc.descriptors, pPBRResDesc->desc.descriptors, sizeof(pPBRResDesc->desc.descriptors[0]) + sizeof(pPBRResDesc->desc.descriptors[1]));
+		const char* skyboxSamplerNames[6] = {
+			"rightSampler",
+			"leftSampler",
+			"topSampler",
+			"botSampler",
+			"frontSampler",
+			"backSampler"
+		};
+		// Set 2
+		for (uint32_t i = 0; i < 6; ++i)
+		{
+			pSkyboxResDesc->desc.descriptors[i + 2] = {
+				(uint32_t)DescriptorUpdateFrequency::SET_2,
+				{ i, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr },
+				skyboxSamplerNames[i]
+			};
+		}
+		CreateResourceDescriptor(pRenderer, &pSkyboxResDesc);
+		resourceDescriptorNameMap.insert({ (uint32_t)std::hash<std::string>{}("Skybox"), pSkyboxResDesc });
+		/* ----------------------------------------------------------------------------------------- */
+
+		/* ----------------------------------- View Projection Scene Descriptors ----------------------------------- */
 		{
 			DescriptorUpdateInfo descUpdateInfos[5] = {};
 			descUpdateInfos[0].name = "UniformBufferObject";
@@ -311,6 +334,7 @@ void AppRenderer::Load()
 				UpdateDescriptorSet(pRenderer, i, pSceneDescriptorSet, 1, descUpdateInfos);
 			}
 		}
+		/* ----------------------------------------------------------------------------------------- */
 
 		pCamera->rotation_speed *= 0.25f;
 		pCamera->translation_speed *= 0.5f;
@@ -346,8 +370,9 @@ void AppRenderer::Load()
 	pDepthBuffer->pTexture->desc.initialLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
 	CreateRenderTarget(pRenderer, &pDepthBuffer);
 
-	ShaderModule* pPBRVertexShader = shaderMap[(uint32_t)std::hash<std::string>{}("pbr.vert")];
-	ShaderModule* pPBRFragmentShader = shaderMap[(uint32_t)std::hash<std::string>{}("pbr.frag")];
+	ShaderModule *pPBRVertexShader = nullptr, *pPBRFragmentShader = nullptr;
+	GetShaderModule(GetResourceLoader(), "pbr.vert", &pPBRVertexShader);
+	GetShaderModule(GetResourceLoader(), "pbr.frag", &pPBRFragmentShader);
 
 	pPBRPipeline->desc.shaderCount = 2;
 	ShaderModule* pbrShaders[2] = {
@@ -424,6 +449,47 @@ void AppRenderer::Load()
 	pPBRPipeline->desc.sampleCount = VK_SAMPLE_COUNT_1_BIT;
 	pPBRPipeline->desc.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
 	CreateGraphicsPipeline(pRenderer, &pPBRPipeline);
+
+	// SKYBOX PIPELINE
+	ShaderModule* pSkyboxVertexShader = nullptr, * pSkyboxFragmentShader = nullptr;
+	GetShaderModule(GetResourceLoader(), "skybox.vert", &pSkyboxVertexShader);
+	GetShaderModule(GetResourceLoader(), "skybox.frag", &pSkyboxFragmentShader);
+
+	pSkyboxPipeline->desc.shaderCount = 2;
+	ShaderModule* skyboxShaders[2] = {
+		pSkyboxVertexShader,
+		pSkyboxFragmentShader
+	};
+	pSkyboxPipeline->desc.shaders = skyboxShaders;
+	
+	VertexAttribute skyboxAttribs[1] = {};
+	skyboxAttribs[0] = {
+		0,									// binding
+		sizeof(glm::vec4),					// stride
+		VK_VERTEX_INPUT_RATE_VERTEX,		// inputrate
+		0,									// location
+		VK_FORMAT_R32G32B32A32_SFLOAT,		// format
+		0									// offset
+	};
+
+	pSkyboxPipeline->desc.attribCount = 1;
+	pSkyboxPipeline->desc.attribs = skyboxAttribs;
+	pSkyboxPipeline->desc.colorAttachmentCount = 1;
+	pSkyboxPipeline->desc.colorFormats[0] = pRenderer->swapchainRenderTargets[0]->pTexture->desc.format;
+	pSkyboxPipeline->desc.cullMode = VK_CULL_MODE_NONE;
+	//pSkyboxPipeline->desc.depthBias = 0.0f;
+	//pSkyboxPipeline->desc.depthBiasSlope = 0.0f;
+	//pSkyboxPipeline->desc.depthClamp = 0.0f;
+	pSkyboxPipeline->desc.depthFunction = VK_COMPARE_OP_LESS;
+	pSkyboxPipeline->desc.depthStencilFormat = VK_FORMAT_D32_SFLOAT;
+	pSkyboxPipeline->desc.depthTest = false;
+	pSkyboxPipeline->desc.depthWrite = false;
+	pSkyboxPipeline->desc.frontFace = VK_FRONT_FACE_CLOCKWISE;
+	//pSkyboxPipeline->desc.polygonMode;
+	pSkyboxPipeline->desc.pResourceDescriptor = pSkyboxResDesc;
+	pSkyboxPipeline->desc.sampleCount = VK_SAMPLE_COUNT_1_BIT;
+	pSkyboxPipeline->desc.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
+	CreateGraphicsPipeline(pRenderer, &pSkyboxPipeline);
 }
 
 void AppRenderer::Unload()
@@ -433,6 +499,7 @@ void AppRenderer::Unload()
 
 	WaitDeviceIdle(pRenderer);
 
+	DestroyGraphicsPipeline(pRenderer, &pSkyboxPipeline);
 	DestroyGraphicsPipeline(pRenderer, &pPBRPipeline);
 	DestroyRenderTarget(pRenderer, &pDepthBuffer);
 	DestroySwapchain(&pRenderer);
@@ -441,30 +508,12 @@ void AppRenderer::Unload()
 
 	if (pRenderer->window.reset)
 	{
-		for (std::pair<uint32_t, AppModel*> model : modelMap)
-		{
-			DestroyModel(model.second->pModel);
-			DestroyDescriptorSet(pRenderer, &model.second->pMaterialDescriptorSet);
-			DestroyDescriptorSet(pRenderer, &model.second->pNodeDescriptorSet);
-
-			delete model.second->pNodeDescriptorSet;
-			delete model.second->pMaterialDescriptorSet;
-			delete model.second->pModel;
-			delete model.second;
-		}
-		modelMap.clear();
-
+		DestroyResourceDescriptor(pRenderer, &pSkyboxResDesc);
 		DestroyResourceDescriptor(pRenderer, &pPBRResDesc);
 		resourceDescriptorNameMap.clear();
 
 		for (uint32_t i = 0; i < pRenderer->maxInFlightFrames; ++i)
 			DestroyBuffer(pRenderer, &ppSceneUniformBuffers[i]);
-
-		for (std::pair<uint32_t, ShaderModule*> shader : shaderMap)
-		{
-			DestroyShaderModule(pRenderer, &shader.second);
-			shader.second = new(shader.second) ShaderModule(shader.second->stage);
-		}
 
 		const uint32_t cmdBfrCnt = pRenderer->maxInFlightFrames;
 		DestroyCommandBuffers(pRenderer, cmdBfrCnt, cmdBfrs);
@@ -602,10 +651,7 @@ void AppRenderer::DrawScene()
 
 	SetViewport(pCmd, 0.0f, 0.0f, (float)pRenderTarget->pTexture->desc.width, (float)pRenderTarget->pTexture->desc.height, 0.0f, 1.0f);
 	SetScissors(pCmd, 0, 0, pRenderTarget->pTexture->desc.width, pRenderTarget->pTexture->desc.height);
-		
-	BindPipeline(pCmd, pPBRPipeline);
-	BindDescriptorSet(pCmd, pRenderer->currentFrame, pSceneDescriptorSet);
-		
+
 	while (!renderQueue.empty())
 	{
 		renderQueue.front()->Draw(pCmd);
@@ -623,135 +669,6 @@ void AppRenderer::DrawScene()
 void AppRenderer::PushToRenderQueue(Renderable* a_pRenderable)
 {
 	renderQueue.push(a_pRenderable);
-}
-
-void updateNodeDescriptor(Renderer* a_pRenderer, Node* node, uint32_t& nodeCounter, DescriptorSet* pNodeDescriptorSet)
-{
-	if (node->mesh)
-	{
-		DescriptorUpdateInfo descUpdateInfo = {};
-		descUpdateInfo.name = "UBONode";
-		descUpdateInfo.mBufferInfo.buffer = node->mesh->uniformBuffer->buffer;
-		descUpdateInfo.mBufferInfo.offset = 0;
-		descUpdateInfo.mBufferInfo.range = node->mesh->uniformBuffer->desc.bufferSize;
-
-		uint32_t index = nodeCounter++;
-		UpdateDescriptorSet(a_pRenderer, index, pNodeDescriptorSet, 1, &descUpdateInfo);
-
-		node->mesh->descriptorSet = pNodeDescriptorSet;
-		node->mesh->indexInDescriptorSet = index;
-	}
-
-	for (Node* child : node->children)
-		updateNodeDescriptor(a_pRenderer, child, nodeCounter, pNodeDescriptorSet);
-}
-
-void AppRenderer::GetModel(const char* a_sPath, AppModel** a_ppAppModel)
-{
-	LOG_IF(!(*a_ppAppModel), LogSeverity::ERR, "(*a_ppAppModel) should be nullptr");
-
-	std::unordered_map<uint32_t, AppModel*>::const_iterator itr = modelMap.find((uint32_t)std::hash<std::string>{}(a_sPath));
-	if (itr == modelMap.end())
-	{
-		*a_ppAppModel = new AppModel();
-		Model*& pModel = (*a_ppAppModel)->pModel;
-		pModel = new Model();
-		DescriptorSet*& pMaterialDescriptorSet = (*a_ppAppModel)->pMaterialDescriptorSet;
-		pMaterialDescriptorSet = new DescriptorSet();
-		DescriptorSet*& pNodeDescriptorSet = (*a_ppAppModel)->pNodeDescriptorSet;
-		pNodeDescriptorSet = new DescriptorSet();
-
-		CreateModelFromFile(pRenderer, resourcePath + a_sPath, pModel);
-		modelMap.insert({ (uint32_t)std::hash<std::string>{}(a_sPath), *a_ppAppModel });
-
-		// Set 2
-		pNodeDescriptorSet->desc = { pPBRResDesc, DescriptorUpdateFrequency::SET_2, (uint32_t)pModel->linearNodes.size() };
-		CreateDescriptorSet(pRenderer, &pNodeDescriptorSet);
-
-		uint32_t nodeCounter = 0;
-		for (Node* node : pModel->nodes)
-			updateNodeDescriptor(pRenderer, node, nodeCounter, pNodeDescriptorSet);
-
-		// Set 3
-		pMaterialDescriptorSet->desc = { pPBRResDesc, DescriptorUpdateFrequency::SET_3, (uint32_t)pModel->materials.size() };
-		CreateDescriptorSet(pRenderer, &pMaterialDescriptorSet);
-
-		const char* samplerNames[5] = {
-			"colorMap",
-			"physicalDescriptorMap",
-			"normalMap",
-			"aoMap",
-			"emissiveMap"
-		};
-
-		{
-			DescriptorUpdateInfo descUpdateInfos[5] = {};
-			for (uint32_t i = 0; i < 5; ++i)
-			{
-				descUpdateInfos[i].name = samplerNames[i];
-				descUpdateInfos[i].mImageInfo.imageView = pRenderer->defaultResources.defaultImage.imageView;
-				descUpdateInfos[i].mImageInfo.imageLayout = pRenderer->defaultResources.defaultImage.desc.initialLayout;
-				descUpdateInfos[i].mImageInfo.sampler = pRenderer->defaultResources.defaultSampler.sampler;
-			}
-
-			uint32_t matrialIndex = 0;
-			for (Material& material : pModel->materials)
-			{
-				if (material.normalTexture)
-				{
-					descUpdateInfos[2].mImageInfo.imageView = material.normalTexture->texture->imageView;
-					descUpdateInfos[2].mImageInfo.sampler = material.normalTexture->sampler->sampler;
-					descUpdateInfos[2].mImageInfo.imageLayout = material.normalTexture->texture->desc.initialLayout;
-				}
-				if (material.occlusionTexture)
-				{
-					descUpdateInfos[3].mImageInfo.imageView = material.occlusionTexture->texture->imageView;
-					descUpdateInfos[3].mImageInfo.sampler = material.occlusionTexture->sampler->sampler;
-					descUpdateInfos[3].mImageInfo.imageLayout = material.occlusionTexture->texture->desc.initialLayout;
-				}
-				if (material.emissiveTexture)
-				{
-					descUpdateInfos[4].mImageInfo.imageView = material.emissiveTexture->texture->imageView;
-					descUpdateInfos[4].mImageInfo.sampler = material.emissiveTexture->sampler->sampler;
-					descUpdateInfos[4].mImageInfo.imageLayout = material.emissiveTexture->texture->desc.initialLayout;
-				}
-
-				if (material.pbrWorkflows.metallicRoughness) {
-					if (material.baseColorTexture) {
-						descUpdateInfos[0].mImageInfo.imageView = material.baseColorTexture->texture->imageView;
-						descUpdateInfos[0].mImageInfo.sampler = material.baseColorTexture->sampler->sampler;
-						descUpdateInfos[0].mImageInfo.imageLayout = material.baseColorTexture->texture->desc.initialLayout;
-					}
-					if (material.metallicRoughnessTexture) {
-						descUpdateInfos[1].mImageInfo.imageView = material.metallicRoughnessTexture->texture->imageView;
-						descUpdateInfos[1].mImageInfo.sampler = material.metallicRoughnessTexture->sampler->sampler;
-						descUpdateInfos[1].mImageInfo.imageLayout = material.metallicRoughnessTexture->texture->desc.initialLayout;
-					}
-				}
-
-				else if (material.pbrWorkflows.specularGlossiness) {
-					if (material.extension.diffuseTexture) {
-						descUpdateInfos[0].mImageInfo.imageView = material.extension.diffuseTexture->texture->imageView;
-						descUpdateInfos[0].mImageInfo.sampler = material.extension.diffuseTexture->sampler->sampler;
-						descUpdateInfos[0].mImageInfo.imageLayout = material.extension.diffuseTexture->texture->desc.initialLayout;
-					}
-					if (material.extension.specularGlossinessTexture) {
-						descUpdateInfos[1].mImageInfo.imageView = material.extension.specularGlossinessTexture->texture->imageView;
-						descUpdateInfos[1].mImageInfo.sampler = material.extension.specularGlossinessTexture->sampler->sampler;
-						descUpdateInfos[1].mImageInfo.imageLayout = material.extension.specularGlossinessTexture->texture->desc.initialLayout;
-					}
-				}
-
-				uint32_t index = matrialIndex++;
-				UpdateDescriptorSet(pRenderer, index, pMaterialDescriptorSet, 5, descUpdateInfos);
-
-				material.descriptorSet = pMaterialDescriptorSet;
-				material.indexInDescriptorSet = index;
-			}
-		}
-	}
-	else
-		*a_ppAppModel = itr->second;
 }
 
 void AppRenderer::GetResourceDescriptorByName(const char* a_sName, ResourceDescriptor** a_ppResourceDescriptor)
@@ -905,5 +822,5 @@ void AppRenderer::BindModelMatrixDescriptorSet(CommandBuffer* a_pCommandBuffer, 
 		return;
 
 	const uint32_t offsets[1] = { a_pIndex * (uint32_t)sizeof(glm::mat4) };
-	BindDescriptorSet(a_pCommandBuffer, pRenderer->currentFrame, itr->second->pDescriptorSet, 1, offsets);
+	BindDescriptorSet(a_pCommandBuffer, pRenderer->currentFrame, itr->second->pDescriptorSet, NULL, 1, offsets);
 }

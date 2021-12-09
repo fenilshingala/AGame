@@ -13,13 +13,13 @@
 #include "../../../include/glm/glm.hpp"
 
 #include "../AppRenderer.h"
+#include "../ResourceLoader.h"
 #include "../Systems/ModelRenderSystem.h"
 
 DEFINE_COMPONENT(ModelComponent)
 
 ModelComponent::ModelComponent() :
-	modelPath(nullptr), pModel(nullptr), modelMatrixIndexInBuffer(-1),
-	pPositionComponent(nullptr)
+	modelPath(nullptr), pModel(nullptr), modelMatrixIndexInBuffer(-1)
 {
 }
 
@@ -34,7 +34,7 @@ void ModelComponent::Exit()
 
 void ModelComponent::Load()
 {
-	GetAppRenderer()->GetModel(modelPath, &pModel);
+	::GetModel(GetResourceLoader(), modelPath, &pModel);
 	GetAppRenderer()->GetModelMatrixFreeIndex("PBR", &modelMatrixIndexInBuffer);
 	GetModelRenderSystem()->AddModelComponent(this);
 }
@@ -42,6 +42,7 @@ void ModelComponent::Load()
 void ModelComponent::Unload()
 {
 	GetModelRenderSystem()->RemoveModelComponent(this);
+	GetAppRenderer()->RevokeModelMatrixIndex("PBR", modelMatrixIndexInBuffer);
 	pModel = nullptr;
 	modelMatrixIndexInBuffer = -1;
 }

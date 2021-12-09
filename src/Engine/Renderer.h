@@ -298,8 +298,8 @@ struct ShaderModule
 	VkShaderModule			shaderModule;
 	VkShaderStageFlagBits	stage;
 
-	ShaderModule(VkShaderStageFlagBits a_stage) :
-		shaderModule(VK_NULL_HANDLE), stage(a_stage)
+	ShaderModule() :
+		shaderModule(VK_NULL_HANDLE), stage(VK_SHADER_STAGE_FLAG_BITS_MAX_ENUM)
 	{}
 };
 
@@ -441,7 +441,7 @@ void EndCommandBuffer(CommandBuffer* a_pCommandBuffer);
 void SetViewport(CommandBuffer* a_pCommandBuffer, float a_fX, float a_fY, float a_fWidth, float a_fHeight, float a_fMinDepth, float a_fMaxDepth);
 void SetScissors(CommandBuffer* a_pCommandBuffer, uint32_t a_uX, uint32_t a_uY, uint32_t a_uWidth, uint32_t a_uHeight);
 void BindPipeline(CommandBuffer* a_pCommandBuffer, Pipeline* a_pPipeline);
-void BindDescriptorSet(CommandBuffer* a_pCommandBuffer, uint32_t a_uIndex, DescriptorSet* a_pDescriptorSet, uint32_t a_uDynamicOffsetCount = 0, const uint32_t* a_uOffsets = NULL);
+void BindDescriptorSet(CommandBuffer* a_pCommandBuffer, uint32_t a_uIndex, DescriptorSet* a_pDescriptorSet, ResourceDescriptor* a_pResourceDescriptor = NULL, uint32_t a_uDynamicOffsetCount = 0, const uint32_t* a_uOffsets = NULL);
 void BindVertexBuffers(CommandBuffer* a_pCommandBuffer, uint32_t a_uCount, Buffer** a_ppBuffers);
 void BindIndexBuffer(CommandBuffer* a_pCommandBuffer, Buffer* a_pBuffer, VkIndexType a_IndexType);
 void BindPushConstants(CommandBuffer* a_pCommandBuffer, ResourceDescriptor* a_pResourceDescriptor, const char* name, const void* pConstants);

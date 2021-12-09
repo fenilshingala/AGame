@@ -46,6 +46,28 @@ public:
 	virtual void Draw(CommandBuffer* a_pCommandBuffer) = 0;
 };
 
+enum class MeshType
+{
+	SKYBOX = 0,
+	//TRIANGLE,
+	//RECTANGLE,
+
+	COUNT
+};
+
+struct AppMesh
+{
+	uint32_t vertexCount;
+	Buffer* pVertexBuffer;
+	bool hasIndices;
+	uint32_t indexCount;
+	Buffer* pIndexBuffer;
+
+	AppMesh() :
+		vertexCount(-1), pVertexBuffer(nullptr), hasIndices(false), indexCount(-1), pIndexBuffer(nullptr)
+	{}
+};
+
 struct AppModel
 {
 	Model*			pModel;
@@ -63,7 +85,7 @@ public:
 	AppRenderer() :
 		pRenderer(nullptr), pCamera(nullptr), pDepthBuffer(nullptr), cmdBfrs(nullptr), renderSystemInitialized(false),
 		ppSceneUniformBuffers(nullptr), pSceneDescriptorSet(nullptr), pPBRResDesc(nullptr), pPBRPipeline(nullptr),
-		modelMap(), shaderMap(), resourceDescriptorNameMap(), modelMatrixDynamicBufferMap(), renderQueue()
+		resourceDescriptorNameMap(), modelMatrixDynamicBufferMap(), renderQueue()
 	{}
 	~AppRenderer() {}
 
@@ -76,7 +98,7 @@ public:
 
 	Renderer* GetRenderer() { return pRenderer; }
 	void PushToRenderQueue(Renderable* a_pRenderable);
-	void GetModel(const char* a_sPath, AppModel** a_ppModel);
+	
 	void GetResourceDescriptorByName(const char* a_sName, ResourceDescriptor** a_ppResourceDescriptor);
 
 	void AllocateModelMatrices(const char* a_sName, uint32_t a_uCount, ResourceDescriptor* a_pResourceDescriptor);
@@ -87,6 +109,12 @@ public:
 	void UpdateModelMatrixGpuBufferForIndex(const char* a_sName, const uint32_t a_pIndex);
 	void BindModelMatrixDescriptorSet(CommandBuffer* a_pCommandBuffer, const char* a_sName, const uint32_t a_pIndex);
 
+	// Pipelines
+	Pipeline* pPBRPipeline;
+	Pipeline* pSkyboxPipeline;
+	//
+	DescriptorSet* pSceneDescriptorSet;
+
 private:
 	Renderer*			pRenderer;
 	Camera*				pCamera;
@@ -96,18 +124,14 @@ private:
 
 	// projection and view matrices
 	Buffer**			ppSceneUniformBuffers;
-	DescriptorSet*		pSceneDescriptorSet;
 	//
 
-	// pipelines
+	// Resource Descriptors
 	ResourceDescriptor*	pPBRResDesc;
-	Pipeline*			pPBRPipeline;
+	ResourceDescriptor*	pSkyboxResDesc;
 	//
 
-	std::unordered_map<uint32_t, AppModel*>						modelMap;
-	std::unordered_map<uint32_t, ShaderModule*>					shaderMap;
 	std::unordered_map<uint32_t, ResourceDescriptor*>			resourceDescriptorNameMap;
 	std::unordered_map<uint32_t, ModelMatrixDynamicBuffer*>		modelMatrixDynamicBufferMap;
-
 	std::queue<Renderable*>	renderQueue;
 };

@@ -14,15 +14,12 @@ public:
 
 	inline AppModel* GetModel() { return pModel; }
 	inline uint32_t GetModelMatrixIndexInBuffer() { return modelMatrixIndexInBuffer; }
-	inline void SetPositionComponent(PositionComponent* a_pPositionComponent) { pPositionComponent = a_pPositionComponent; }
-	inline PositionComponent* GetPositionComponent() { return pPositionComponent; }
 
 	char* modelPath;
 
 private:
 	AppModel* pModel;
 	uint32_t modelMatrixIndexInBuffer;
-	PositionComponent* pPositionComponent;
 END
 
 

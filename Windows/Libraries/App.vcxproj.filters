@@ -41,6 +41,15 @@
     <ClCompile Include="..\..\src\App\AppRenderer.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\App\ResourceLoader.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\App\Components\SkyboxComponent.cpp">
+      <Filter>Source Files\Components</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\App\Systems\SkyboxRenderSystem.cpp">
+      <Filter>Source Files\Systems</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <None Include="..\..\src\App\Resources\Shaders\basic.frag">
@@ -57,6 +66,12 @@
     </None>
     <None Include="..\..\src\App\Resources\Levels\Sample.json">
       <Filter>Resource Files\Levels</Filter>
+    </None>
+    <None Include="..\..\src\App\Resources\Shaders\skybox.vert">
+      <Filter>Resource Files\Shaders</Filter>
+    </None>
+    <None Include="..\..\src\App\Resources\Shaders\skybox.frag">
+      <Filter>Resource Files\Shaders</Filter>
     </None>
   </ItemGroup>
   <ItemGroup>
@@ -77,6 +92,15 @@
     </ClInclude>
     <ClInclude Include="..\..\src\App\AppRenderer.h">
       <Filter>Source Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\App\ResourceLoader.h">
+      <Filter>Source Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\App\Components\SkyboxComponent.h">
+      <Filter>Source Files\Components</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\App\Systems\SkyboxRenderSystem.h">
+      <Filter>Source Files\Systems</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>

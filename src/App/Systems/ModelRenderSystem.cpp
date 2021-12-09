@@ -94,12 +94,18 @@ void renderNode(CommandBuffer* pCommandBuffer, Node* node, Material::AlphaMode a
 
 void ModelRenderable::Draw(CommandBuffer* a_pCommandBuffer)
 {
+	BindPipeline(a_pCommandBuffer, GetAppRenderer()->pPBRPipeline);
+	
+	ResourceDescriptor* pPBRResourceDescriptor = nullptr;
+	GetAppRenderer()->GetResourceDescriptorByName("PBR", &pPBRResourceDescriptor);
+	BindDescriptorSet(a_pCommandBuffer, GetAppRenderer()->GetRenderer()->currentFrame, GetAppRenderer()->pSceneDescriptorSet, pPBRResourceDescriptor);
+
+	GetAppRenderer()->BindModelMatrixDescriptorSet(a_pCommandBuffer, "PBR", modelMatrixIndex);
+
 	BindVertexBuffers(a_pCommandBuffer, 1, &(pModel->vertices));
 	if (pModel->indices->buffer != VK_NULL_HANDLE) {
 		BindIndexBuffer(a_pCommandBuffer, pModel->indices, VK_INDEX_TYPE_UINT32);
 	}
-
-	GetAppRenderer()->BindModelMatrixDescriptorSet(a_pCommandBuffer, "PBR", modelMatrixIndex);
 
 	// Opaque primitives first
 	for (Node* node : pModel->nodes) {
@@ -127,7 +133,7 @@ void ModelRenderSystem::Update()
 	{
 		ModelComponent* pModelComponent = modelComponents[i];
 		
-		PositionComponent* pPositionComponent = pModelComponent->GetPositionComponent();
+		PositionComponent* pPositionComponent = GetEntityManager()->getEntityByID(pModelComponent->GetOwnerID())->GetComponent<PositionComponent>();
 		glm::mat4* modelMatrix = nullptr;
 		GetAppRenderer()->GetModelMatrixCpuBufferForIndex("PBR", pModelComponent->GetModelMatrixIndexInBuffer(), &modelMatrix);
 		*modelMatrix = glm::mat4(1.0f);
@@ -146,7 +152,6 @@ void ModelRenderSystem::Update()
 
 void ModelRenderSystem::AddModelComponent(ModelComponent* a_pModelComponent)
 {
-	a_pModelComponent->SetPositionComponent( GetEntityManager()->getEntityByID(a_pModelComponent->GetOwnerID())->GetComponent<PositionComponent>() );
 	modelComponents.push_back(a_pModelComponent);
 }
 
@@ -159,5 +164,4 @@ void ModelRenderSystem::RemoveModelComponent(ModelComponent* a_pModelComponent)
 	{
 		modelComponents.erase(itr);
 	}
-	a_pModelComponent->SetPositionComponent(nullptr);
 }

@@ -126,9 +126,9 @@ void InitializeDefaultResources(Renderer* a_pRenderer)
 	pSampler->desc.minFilter = VK_FILTER_LINEAR;
 	pSampler->desc.magFilter = VK_FILTER_LINEAR;
 	pSampler->desc.mipMapMode = VK_SAMPLER_MIPMAP_MODE_NEAREST;
-	pSampler->desc.addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER;
-	pSampler->desc.addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER;
-	pSampler->desc.addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER;
+	pSampler->desc.addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+	pSampler->desc.addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+	pSampler->desc.addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
 	CreateSampler(a_pRenderer, &pSampler);
 }
 
@@ -1774,7 +1774,7 @@ void UpdateDescriptorSet(Renderer* a_pRenderer, uint32_t index, DescriptorSet* a
 		a_pDescriptorSet->desc.pResourceDescriptor->descriptorUpdateTemplates[updateFrequency], pUpdateData);
 }
 
-void BindDescriptorSet(CommandBuffer* a_pCommandBuffer, uint32_t a_uIndex, DescriptorSet* a_pDescriptorSet, uint32_t a_uDynamicOffsetCount, const uint32_t* a_uOffsets)
+void BindDescriptorSet(CommandBuffer* a_pCommandBuffer, uint32_t a_uIndex, DescriptorSet* a_pDescriptorSet, ResourceDescriptor* a_pResourceDescriptor, uint32_t a_uDynamicOffsetCount, const uint32_t* a_uOffsets)
 {
 	LOG_IF(a_pDescriptorSet, LogSeverity::ERR, "a_pDescriptorSet is NULL");
 	if(a_uDynamicOffsetCount > 0)
@@ -1782,6 +1782,14 @@ void BindDescriptorSet(CommandBuffer* a_pCommandBuffer, uint32_t a_uIndex, Descr
 
 	ResourceDescriptor* pResourceDescriptor = a_pDescriptorSet->desc.pResourceDescriptor;
 	uint32_t updateFrequency = (uint32_t)a_pDescriptorSet->desc.updateFrequency;
+
+	// override
+	if (a_pResourceDescriptor)
+	{
+		LOG_IF(a_pResourceDescriptor->descriptorCounts[updateFrequency], LogSeverity::ERR, "Given resource descriptor doesn't have any descriptos on set %d", updateFrequency);
+		pResourceDescriptor = a_pResourceDescriptor;
+	}
+
 	vkCmdBindDescriptorSets(a_pCommandBuffer->commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pResourceDescriptor->pipelineLayout, updateFrequency, 1,
 		&a_pDescriptorSet->descriptorSets[a_uIndex], a_uDynamicOffsetCount, (a_uDynamicOffsetCount > 0) ? a_uOffsets : NULL);
 }
@@ -2429,7 +2437,7 @@ void SetViewport(CommandBuffer* a_pCommandBuffer, float a_fX, float a_fY, float 
 
 	VkViewport viewport;
 	viewport.x = a_fX;
-	viewport.y = a_fX;
+	viewport.y = a_fY;
 	viewport.width = a_fWidth;
 	viewport.height = a_fHeight;
 	viewport.minDepth = a_fMinDepth;
