@@ -162,7 +162,7 @@ public:
 		pFRC->FrameStart();
 
 		pSkyboxRenderSystem->Update();
-		pModelRenderSystem->Update();
+		pModelRenderSystem->Update(dt);
 		pAppRenderer->Update(dt);
 		pAppRenderer->DrawScene();
 

@@ -14,9 +14,12 @@
     <ClCompile Include="..\..\..\..\src\App\AppRenderer.cpp" />
     <ClCompile Include="..\..\..\..\src\App\Components\ModelComponent.cpp" />
     <ClCompile Include="..\..\..\..\src\App\Components\PositionComponent.cpp" />
+    <ClCompile Include="..\..\..\..\src\App\Components\SkyboxComponent.cpp" />
     <ClCompile Include="..\..\..\..\src\App\main.cpp" />
+    <ClCompile Include="..\..\..\..\src\App\ResourceLoader.cpp" />
     <ClCompile Include="..\..\..\..\src\App\Serializer.cpp" />
     <ClCompile Include="..\..\..\..\src\App\Systems\ModelRenderSystem.cpp" />
+    <ClCompile Include="..\..\..\..\src\App\Systems\SkyboxRenderSystem.cpp" />
     <ClCompile Include="..\..\..\..\src\Engine\OS\Android\android_native_app_glue.c" />
   </ItemGroup>
   <ItemGroup>
@@ -30,9 +33,12 @@
     <ClInclude Include="..\..\..\..\src\App\AppRenderer.h" />
     <ClInclude Include="..\..\..\..\src\App\Components\ModelComponent.h" />
     <ClInclude Include="..\..\..\..\src\App\Components\PositionComponent.h" />
+    <ClInclude Include="..\..\..\..\src\App\Components\SkyboxComponent.h" />
+    <ClInclude Include="..\..\..\..\src\App\ResourceLoader.h" />
     <ClInclude Include="..\..\..\..\src\App\Serializer.h" />
     <ClInclude Include="..\..\..\..\src\App\Systems.h" />
     <ClInclude Include="..\..\..\..\src\App\Systems\ModelRenderSystem.h" />
+    <ClInclude Include="..\..\..\..\src\App\Systems\SkyboxRenderSystem.h" />
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <ProjectGuid>{e1d1a7c0-07b5-4c61-ad3c-f3a2cae3b66f}</ProjectGuid>

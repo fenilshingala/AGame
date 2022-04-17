@@ -21,10 +21,12 @@ class ModelRenderable : public Renderable
 public:
 	void SetModel(Model* a_pModel) { pModel = a_pModel; }
 	void SetModelMatrixIndex(uint32_t a_ModelMatrixIndex) { modelMatrixIndex = a_ModelMatrixIndex; }
+	void SetNodeDescriptorSet(DescriptorSet* a_DescriptorSet) { pNodeDescriptorSet = a_DescriptorSet; }
 	void Draw(CommandBuffer* a_pCommandBuffer);
 
 private:
 	uint32_t modelMatrixIndex;
+	DescriptorSet* pNodeDescriptorSet;
 	Model* pModel;
 };
 
@@ -109,10 +111,12 @@ void ModelRenderable::Draw(CommandBuffer* a_pCommandBuffer)
 
 	// Opaque primitives first
 	for (Node* node : pModel->nodes) {
+		BindDescriptorSet(a_pCommandBuffer, node->index, pNodeDescriptorSet, pPBRResourceDescriptor);
 		renderNode(a_pCommandBuffer, node, Material::AlphaMode::ALPHAMODE_OPAQUE);
 	}
 	// Alpha masked primitives
 	for (Node* node : pModel->nodes) {
+		BindDescriptorSet(a_pCommandBuffer, node->index, pNodeDescriptorSet, pPBRResourceDescriptor);
 		renderNode(a_pCommandBuffer, node, Material::AlphaMode::ALPHAMODE_MASK);
 	}
 }
@@ -126,7 +130,10 @@ ModelRenderSystem::ModelRenderSystem()
 ModelRenderSystem::~ModelRenderSystem()
 {}
 
-void ModelRenderSystem::Update()
+static float currentTime = 0.0f;
+static int animationIndex = 0;
+
+void ModelRenderSystem::Update(float dt)
 {
 	static uint32_t renderablesCount = (uint32_t)modelComponents.size();
 	for (uint32_t i=0; i < renderablesCount; ++i)
@@ -143,9 +150,21 @@ void ModelRenderSystem::Update()
 		*modelMatrix = glm::scale(*modelMatrix, glm::vec3(pPositionComponent->scaleX, pPositionComponent->scaleY, pPositionComponent->scaleZ));
 		GetAppRenderer()->UpdateModelMatrixGpuBufferForIndex("PBR", pModelComponent->GetModelMatrixIndexInBuffer());
 
+		AppModel* pAppModel = pModelComponent->GetModel();
+		if (pAppModel->pModel->animations.size())
+		{
+			currentTime += dt;
+			if (currentTime > pAppModel->pModel->animations[animationIndex].end)
+			{
+				currentTime -= pAppModel->pModel->animations[animationIndex].end;
+			}
+			UpdateAnimation(animationIndex, currentTime, pAppModel->pModel);
+		}
+
 		ModelRenderable* pRenderable = &renderables[i];
 		pRenderable->SetModelMatrixIndex(pModelComponent->GetModelMatrixIndexInBuffer());
-		pRenderable->SetModel(pModelComponent->GetModel()->pModel);
+		pRenderable->SetNodeDescriptorSet(pModelComponent->GetModel()->pNodeDescriptorSet);
+		pRenderable->SetModel(pAppModel->pModel);
 		GetAppRenderer()->PushToRenderQueue(pRenderable);
 	}
 }

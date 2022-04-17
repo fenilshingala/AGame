@@ -23,7 +23,7 @@
   },
   "Entity0": {
     "PositionComponent": {
-      "x": -1.0,
+      "x": 0.0,
       "y": 0.0,
       "z": 0.0,
       "scaleX": 1.0,
@@ -35,81 +35,13 @@
       "rotationAxisZ": 0.0
     },
     "ModelComponent": {
-      "modelPath": "Models/pony_cartoon/scene.gltf"
+      "modelPath": "Models/ybot.gltf"
     }
   },
   "Entity1": {
     "PositionComponent": {
       "x": 1.0,
       "y": 0.0,
-      "z": 0.0,
-      "scaleX": 1.0,
-      "scaleY": 1.0,
-      "scaleZ": 1.0,
-      "rotation": 0.0,
-      "rotationAxisX": 0.0,
-      "rotationAxisY": 1.0,
-      "rotationAxisZ": 0.0
-    },
-    "ModelComponent": {
-      "modelPath": "Models/pony_cartoon/scene.gltf"
-    }
-  },
-  "Entity2": {
-    "PositionComponent": {
-      "x": -2.0,
-      "y": 1.0,
-      "z": 0.0,
-      "scaleX": 1.0,
-      "scaleY": 1.0,
-      "scaleZ": 1.0,
-      "rotation": 0.0,
-      "rotationAxisX": 0.0,
-      "rotationAxisY": 1.0,
-      "rotationAxisZ": 0.0
-    },
-    "ModelComponent": {
-      "modelPath": "Models/pony_cartoon/scene.gltf"
-    }
-  },
-  "Entity3": {
-    "PositionComponent": {
-      "x": 2.0,
-      "y": 1.0,
-      "z": 0.0,
-      "scaleX": 1.0,
-      "scaleY": 1.0,
-      "scaleZ": 1.0,
-      "rotation": 0.0,
-      "rotationAxisX": 0.0,
-      "rotationAxisY": 1.0,
-      "rotationAxisZ": 0.0
-    },
-    "ModelComponent": {
-      "modelPath": "Models/pony_cartoon/scene.gltf"
-    }
-  },
-  "Entity4": {
-    "PositionComponent": {
-      "x": -3.0,
-      "y": 2.0,
-      "z": 0.0,
-      "scaleX": 1.0,
-      "scaleY": 1.0,
-      "scaleZ": 1.0,
-      "rotation": 0.0,
-      "rotationAxisX": 0.0,
-      "rotationAxisY": 1.0,
-      "rotationAxisZ": 0.0
-    },
-    "ModelComponent": {
-      "modelPath": "Models/pony_cartoon/scene.gltf"
-    }
-  },
-  "Entity5": {
-    "PositionComponent": {
-      "x": 3.0,
-      "y": 2.0,
       "z": 0.0,
       "scaleX": 1.0,
       "scaleY": 1.0,

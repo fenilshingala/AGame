@@ -20,7 +20,6 @@ void DrawNode(Node* node, CommandBuffer* commandBuffer);
 void Draw(CommandBuffer* commandBuffer, Model* a_pModel);
 void CalculateBoundingBox(Node* node, Node* parent, Model* a_pModel);
 void GetSceneDimensions(Model* a_pModel);
-void UpdateAnimation(uint32_t index, float time, Model* a_pModel);
 Node* FindNode(Node* parent, uint32_t index);
 Node* NodeFromIndex(uint32_t index, Model* a_pModel);
 

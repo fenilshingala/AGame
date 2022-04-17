@@ -203,4 +203,5 @@ struct Model
 };
 
 void CreateModelFromFile(Renderer* a_pRenderer, std::string a_sFilename, Model* a_pModel, float a_fScale = 1.0f);
+void UpdateAnimation(uint32_t index, float time, Model* a_pModel);
 void DestroyModel(Model* a_pModel);
