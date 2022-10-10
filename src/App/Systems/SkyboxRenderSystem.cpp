@@ -91,6 +91,7 @@ void SkyboxRenderSystem::Update()
 		AppMesh* pAppMesh = nullptr;
 		GetMesh(GetResourceLoader(), MeshType::SKYBOX, &pAppMesh);
 		pRenderable->SetAppMesh(pAppMesh);
+		pRenderable->SetModelMatrixIndex(pSkyboxComponent->GetModelMatrixIndexInBuffer());
 		GetAppRenderer()->PushToRenderQueue(pRenderable);
 	}
 }

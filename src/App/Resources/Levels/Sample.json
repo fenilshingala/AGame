@@ -36,11 +36,12 @@
     },
     "ModelComponent": {
       "modelPath": "Models/ybot.gltf"
-    }
+    },
+    "ColliderComponent": {}
   },
   "Entity1": {
     "PositionComponent": {
-      "x": 1.0,
+      "x": 3.0,
       "y": 0.0,
       "z": 0.0,
       "scaleX": 1.0,
@@ -52,7 +53,11 @@
       "rotationAxisZ": 0.0
     },
     "ModelComponent": {
-      "modelPath": "Models/pony_cartoon/scene.gltf"
+      "modelPath": "Models/ybot.gltf"
+    },
+    "ColliderComponent": {},
+    "ControllerComponent": {
+      "keyBoardControl": true
     }
   }
 }

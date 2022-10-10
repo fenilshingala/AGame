@@ -179,7 +179,6 @@ void CreateModelFromFile(Renderer* a_pRenderer, std::string a_sFilename, Model* 
 	bool fileLoaded = binary ? gltfContext.LoadBinaryFromFile(&gltfModel, &error, &warning, a_sFilename.c_str()) : gltfContext.LoadASCIIFromFile(&gltfModel, &error, &warning, a_sFilename.c_str());
 
 	std::vector<uint32_t> indexBuffer;
-	std::vector<Model::Vertex> vertexBuffer;
 
 	if (fileLoaded) {
 		LoadTextureSamplers(a_pRenderer, gltfModel, a_pModel);
@@ -189,7 +188,7 @@ void CreateModelFromFile(Renderer* a_pRenderer, std::string a_sFilename, Model* 
 		const tinygltf::Scene& scene = gltfModel.scenes[gltfModel.defaultScene > -1 ? gltfModel.defaultScene : 0];
 		for (size_t i = 0; i < scene.nodes.size(); i++) {
 			const tinygltf::Node node = gltfModel.nodes[scene.nodes[i]];
-			LoadNode(nullptr, node, scene.nodes[i], gltfModel, indexBuffer, vertexBuffer, a_fScale, a_pModel);
+			LoadNode(nullptr, node, scene.nodes[i], gltfModel, indexBuffer, a_pModel->vertexBuffer, a_fScale, a_pModel);
 		}
 		if (gltfModel.animations.size() > 0) {
 			LoadAnimations(gltfModel, a_pModel);
@@ -217,7 +216,7 @@ void CreateModelFromFile(Renderer* a_pRenderer, std::string a_sFilename, Model* 
 	a_pModel->vertices = new Buffer();
 	a_pModel->indices = new Buffer();
 
-	size_t vertexBufferSize = vertexBuffer.size() * sizeof(Model::Vertex);
+	size_t vertexBufferSize = a_pModel->vertexBuffer.size() * sizeof(Model::Vertex);
 	size_t indexBufferSize = indexBuffer.size() * sizeof(uint32_t);
 
 	assert(vertexBufferSize > 0);
@@ -226,7 +225,7 @@ void CreateModelFromFile(Renderer* a_pRenderer, std::string a_sFilename, Model* 
 	a_pModel->vertices->desc.bufferUsageFlags = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT;
 	a_pModel->vertices->desc.memoryPropertyFlags = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
 	a_pModel->vertices->desc.bufferSize = vertexBufferSize;
-	a_pModel->vertices->desc.pData = vertexBuffer.data();
+	a_pModel->vertices->desc.pData = a_pModel->vertexBuffer.data();
 	CreateBuffer(a_pModel->pRenderer, &a_pModel->vertices);
 
 	// Index data

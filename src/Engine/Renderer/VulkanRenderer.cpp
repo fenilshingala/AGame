@@ -387,7 +387,7 @@ int rateDeviceSuitability(const VkPhysicalDevice& device, const VkSurfaceKHR& su
 	vkGetPhysicalDeviceFeatures(device, &deviceFeatures);
 
 	// Application can't function without geometry shaders
-	if (!deviceFeatures.geometryShader || !deviceFeatures.samplerAnisotropy)
+	if (!deviceFeatures.geometryShader || !deviceFeatures.samplerAnisotropy || !deviceFeatures.fillModeNonSolid)
 	{
 		return 0;
 	}
@@ -537,6 +537,7 @@ void CreateLogicalDevice(Renderer** a_ppRenderer)
 	VkPhysicalDeviceFeatures deviceFeatures = {};
 	deviceFeatures.samplerAnisotropy = VK_TRUE;
 	deviceFeatures.shaderSampledImageArrayDynamicIndexing = VK_TRUE;
+	deviceFeatures.fillModeNonSolid = VK_TRUE;
 
 	createInfo.pEnabledFeatures = &deviceFeatures;
 

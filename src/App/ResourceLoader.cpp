@@ -44,6 +44,45 @@ static const float skyBoxVertices[] = {
 	-10.0f, 4.0f,   -10.0f, -10.0f, 10.0f,  4.0f,   10.0f,  -10.0f, 10.0f,  4.0f,
 };
 
+static const float cubeVertices[] = {
+	-1.0f,-1.0f,-1.0f, // triangle 1 : begin
+	-1.0f,-1.0f, 1.0f,
+	-1.0f, 1.0f, 1.0f, // triangle 1 : end
+	1.0f, 1.0f,-1.0f, // triangle 2 : begin
+	-1.0f,-1.0f,-1.0f,
+	-1.0f, 1.0f,-1.0f, // triangle 2 : end
+	1.0f,-1.0f, 1.0f,
+	-1.0f,-1.0f,-1.0f,
+	1.0f,-1.0f,-1.0f,
+	1.0f, 1.0f,-1.0f,
+	1.0f,-1.0f,-1.0f,
+	-1.0f,-1.0f,-1.0f,
+	-1.0f,-1.0f,-1.0f,
+	-1.0f, 1.0f, 1.0f,
+	-1.0f, 1.0f,-1.0f,
+	1.0f,-1.0f, 1.0f,
+	-1.0f,-1.0f, 1.0f,
+	-1.0f,-1.0f,-1.0f,
+	-1.0f, 1.0f, 1.0f,
+	-1.0f,-1.0f, 1.0f,
+	1.0f,-1.0f, 1.0f,
+	1.0f, 1.0f, 1.0f,
+	1.0f,-1.0f,-1.0f,
+	1.0f, 1.0f,-1.0f,
+	1.0f,-1.0f,-1.0f,
+	1.0f, 1.0f, 1.0f,
+	1.0f,-1.0f, 1.0f,
+	1.0f, 1.0f, 1.0f,
+	1.0f, 1.0f,-1.0f,
+	-1.0f, 1.0f,-1.0f,
+	1.0f, 1.0f, 1.0f,
+	-1.0f, 1.0f,-1.0f,
+	-1.0f, 1.0f, 1.0f,
+	1.0f, 1.0f, 1.0f,
+	-1.0f, 1.0f, 1.0f,
+	1.0f,-1.0f, 1.0f
+};
+
 struct ModelMatrixDynamicBuffer
 {
 	uint32_t		count;
@@ -269,6 +308,21 @@ void CreateMesh(MeshType e_MeshType, AppMesh** a_ppAppMesh)
 		};
 		CreateBuffer(GetAppRenderer()->GetRenderer(), &vertexBuffer);
 		pAppMesh->vertexCount = (sizeof(skyBoxVertices) / sizeof(skyBoxVertices[0])) / 4;
+
+		break;
+	}
+	case MeshType::DEBUG_BOX:
+	{
+		Buffer*& vertexBuffer = pAppMesh->pVertexBuffer;
+		vertexBuffer = new Buffer();
+		vertexBuffer->desc = {
+			(uint64_t)sizeof(cubeVertices),
+			VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
+			VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+			(void*)(cubeVertices)
+		};
+		CreateBuffer(GetAppRenderer()->GetRenderer(), &vertexBuffer);
+		pAppMesh->vertexCount = (sizeof(cubeVertices) / sizeof(cubeVertices[0])) / 3;
 
 		break;
 	}

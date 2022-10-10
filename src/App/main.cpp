@@ -15,8 +15,12 @@
 #include "ResourceLoader.h"
 #include "Systems/ModelRenderSystem.h"
 #include "Systems/SkyboxRenderSystem.h"
+#include "Systems/Physics.h"
+#include "Systems/MotionSystem.h"
 #include "Components/ModelComponent.h"
 #include "Components/SkyboxComponent.h"
+#include "Components/ColliderComponent.h"
+#include "Components/ControllerComponent.h"
 
 #include <unordered_map>
 
@@ -36,6 +40,8 @@ EntityManager* pEntityManager = nullptr;
 Serializer* pSerializer = nullptr;
 ModelRenderSystem* pModelRenderSystem = nullptr;
 SkyboxRenderSystem* pSkyboxRenderSystem = nullptr;
+Physics* pPhysics = nullptr;
+MotionSystem* pMotionSystem = nullptr;
 
 AppRenderer* GetAppRenderer()
 {
@@ -62,6 +68,16 @@ SkyboxRenderSystem* GetSkyboxRenderSystem()
 	return pSkyboxRenderSystem;
 }
 
+Physics* GetPhysics()
+{
+	return pPhysics;
+}
+
+MotionSystem* GetMotionSystem()
+{
+	return pMotionSystem;
+}
+
 class App : public IApp
 {
 	uint32_t entityCount;
@@ -80,7 +96,9 @@ public:
 		pSerializer = new Serializer();
 		pModelRenderSystem = new ModelRenderSystem();
 		pSkyboxRenderSystem = new SkyboxRenderSystem();
-		
+		pPhysics = new Physics();
+		pMotionSystem = new MotionSystem();
+
 		pAppRenderer->Init(this);
 		InitResourceLoader(&pResourceLoader);
 		
@@ -94,10 +112,26 @@ public:
 		std::list<Component*> skyboxComponents = pEntityManager->GetComponents<SkyboxComponent>();
 		for (Component* pComponent : skyboxComponents)
 			pComponent->Init();
+
+		std::list<Component*> colliderComponents = pEntityManager->GetComponents<ColliderComponent>();
+		for (Component* pComponent : colliderComponents)
+			pComponent->Init();
+
+		std::list<Component*> controllerComponents = pEntityManager->GetComponents<ControllerComponent>();
+		for (Component* pComponent : controllerComponents)
+			pComponent->Init();
 	}
 
 	void Exit()
 	{
+		std::list<Component*> controllerComponents = pEntityManager->GetComponents<ControllerComponent>();
+		for (Component* pComponent : controllerComponents)
+			pComponent->Exit();
+
+		std::list<Component*> colliderComponents = pEntityManager->GetComponents<ColliderComponent>();
+		for (Component* pComponent : colliderComponents)
+			pComponent->Exit();
+
 		std::list<Component*> skyboxComponents = pEntityManager->GetComponents<SkyboxComponent>();
 		for (Component* pComponent : skyboxComponents)
 			pComponent->Exit();
@@ -110,6 +144,8 @@ public:
 		ExitResourceLoader(&pResourceLoader);
 		pAppRenderer->Exit();
 
+		delete pMotionSystem;
+		delete pPhysics;
 		delete pSkyboxRenderSystem;
 		delete pModelRenderSystem;
 		delete pSerializer;
@@ -131,6 +167,9 @@ public:
 		pAppRenderer->GetResourceDescriptorByName("Skybox", &a_pResourceDescriptor);
 		pAppRenderer->AllocateModelMatrices("Skybox", 1, a_pResourceDescriptor);
 
+		pAppRenderer->GetResourceDescriptorByName("DebugDraw", &a_pResourceDescriptor);
+		pAppRenderer->AllocateModelMatrices("DebugDraw", 10, a_pResourceDescriptor);
+
 		std::list<Component*> modelComponents = pEntityManager->GetComponents<ModelComponent>();
 		for (Component* pComponent : modelComponents)
 			pComponent->Load();
@@ -138,10 +177,26 @@ public:
 		std::list<Component*> skyboxComponents = pEntityManager->GetComponents<SkyboxComponent>();
 		for (Component* pComponent : skyboxComponents)
 			pComponent->Load();
+
+		std::list<Component*> colliderComponents = pEntityManager->GetComponents<ColliderComponent>();
+		for (Component* pComponent : colliderComponents)
+			pComponent->Load();
+
+		std::list<Component*> controllerComponents = pEntityManager->GetComponents<ControllerComponent>();
+		for (Component* pComponent : controllerComponents)
+			pComponent->Load();
 	}
 
 	void Unload()
 	{
+		std::list<Component*> controllerComponents = pEntityManager->GetComponents<ControllerComponent>();
+		for (Component* pComponent : controllerComponents)
+			pComponent->Unload();
+
+		std::list<Component*> colliderComponents = pEntityManager->GetComponents<ColliderComponent>();
+		for (Component* pComponent : colliderComponents)
+			pComponent->Unload();
+
 		std::list<Component*> skyboxComponents = pEntityManager->GetComponents<SkyboxComponent>();
 		for (Component* pComponent : skyboxComponents)
 			pComponent->Unload();
@@ -151,6 +206,7 @@ public:
 			pComponent->Unload();
 
 		UnloadResourceLoader(&pResourceLoader);
+		pAppRenderer->DestroyModelMatrices("DebugDraw");
 		pAppRenderer->DestroyModelMatrices("Skybox");
 		pAppRenderer->DestroyModelMatrices("PBR");
 		pAppRenderer->Unload();
@@ -161,6 +217,8 @@ public:
 		float dt = pFRC->GetFrameTime();
 		pFRC->FrameStart();
 
+		pMotionSystem->Update(dt);
+		pPhysics->Update(dt);
 		pSkyboxRenderSystem->Update();
 		pModelRenderSystem->Update(dt);
 		pAppRenderer->Update(dt);

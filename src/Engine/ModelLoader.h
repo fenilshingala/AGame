@@ -194,6 +194,7 @@ struct Model
 	std::vector<Material> materials;
 	std::vector<Animation> animations;
 	std::vector<std::string> extensions;
+	std::vector<Model::Vertex> vertexBuffer;
 
 	struct Dimensions
 	{

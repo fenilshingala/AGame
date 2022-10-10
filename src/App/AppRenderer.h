@@ -49,6 +49,7 @@ public:
 enum class MeshType
 {
 	SKYBOX = 0,
+	DEBUG_BOX,
 	//TRIANGLE,
 	//RECTANGLE,
 
@@ -112,6 +113,7 @@ public:
 	// Pipelines
 	Pipeline* pPBRPipeline;
 	Pipeline* pSkyboxPipeline;
+	Pipeline* pDebugDrawPipeline;
 	//
 	DescriptorSet* pSceneDescriptorSet;
 
@@ -129,6 +131,7 @@ private:
 	// Resource Descriptors
 	ResourceDescriptor*	pPBRResDesc;
 	ResourceDescriptor*	pSkyboxResDesc;
+	ResourceDescriptor*	pDebugDrawResDesc;
 	//
 
 	std::unordered_map<uint32_t, ResourceDescriptor*>			resourceDescriptorNameMap;

@@ -4,6 +4,9 @@
 
 #include "../Components/ModelComponent.h"
 #include "../Components/PositionComponent.h"
+#include "../Components/ColliderComponent.h"
+
+#include "../ResourceLoader.h"
 
 #include "../../Engine/Renderer.h"
 #include "../../Engine/ModelLoader.h"
@@ -124,6 +127,49 @@ void ModelRenderable::Draw(CommandBuffer* a_pCommandBuffer)
 static ModelRenderable renderables[32] = {};
 static std::vector<ModelComponent*> modelComponents;
 
+class DebugDrawRenderable : public Renderable
+{
+public:
+	void SetModelMatrixIndex(uint32_t a_ModelMatrixIndex) { modelMatrixIndex = a_ModelMatrixIndex; }
+	void SetAppMesh(AppMesh* a_pAppMesh) { pAppMesh = a_pAppMesh; }
+	void Draw(CommandBuffer* a_pCommandBuffer);
+
+private:
+	uint32_t modelMatrixIndex;
+	AppMesh* pAppMesh;
+};
+
+void DebugDrawRenderable::Draw(CommandBuffer* a_pCommandBuffer)
+{
+	uint32_t w = GetAppRenderer()->GetRenderer()->swapchainRenderTargets[0]->pTexture->desc.width;
+	uint32_t h = GetAppRenderer()->GetRenderer()->swapchainRenderTargets[0]->pTexture->desc.height;
+	SetViewport(a_pCommandBuffer, 0.0f, 0.0f, (float)w, (float)h, 0.0f/*1.0f*/, 1.0f);
+
+	BindPipeline(a_pCommandBuffer, GetAppRenderer()->pDebugDrawPipeline);
+
+	ResourceDescriptor* pDebugDrawResourceDescriptor = nullptr;
+	GetAppRenderer()->GetResourceDescriptorByName("DebugDraw", &pDebugDrawResourceDescriptor);
+	BindDescriptorSet(a_pCommandBuffer, GetAppRenderer()->GetRenderer()->currentFrame, GetAppRenderer()->pSceneDescriptorSet, pDebugDrawResourceDescriptor);
+
+	GetAppRenderer()->BindModelMatrixDescriptorSet(a_pCommandBuffer, "DebugDraw", modelMatrixIndex);
+
+	BindVertexBuffers(a_pCommandBuffer, 1, &(pAppMesh->pVertexBuffer));
+	if (pAppMesh->hasIndices) {
+		BindIndexBuffer(a_pCommandBuffer, pAppMesh->pIndexBuffer, VK_INDEX_TYPE_UINT32);
+	}
+
+	if (pAppMesh->hasIndices) {
+		DrawIndexed(a_pCommandBuffer, pAppMesh->indexCount, 0, 0);
+	}
+	else {
+		::Draw(a_pCommandBuffer, pAppMesh->vertexCount, 0);
+	}
+
+	//SetViewport(a_pCommandBuffer, 0.0f, 0.0f, (float)w, (float)h, 0.0f, 1.0f);
+}
+
+static DebugDrawRenderable debugDrawRenderables[32] = {};
+
 ModelRenderSystem::ModelRenderSystem()
 {}
 
@@ -166,6 +212,26 @@ void ModelRenderSystem::Update(float dt)
 		pRenderable->SetNodeDescriptorSet(pModelComponent->GetModel()->pNodeDescriptorSet);
 		pRenderable->SetModel(pAppModel->pModel);
 		GetAppRenderer()->PushToRenderQueue(pRenderable);
+
+		ColliderComponent* pColliderComponent = GetEntityManager()->getEntityByID(pModelComponent->GetOwnerID())->GetComponent<ColliderComponent>();
+		if (pColliderComponent)
+		{
+			modelMatrix = nullptr;
+			GetAppRenderer()->GetModelMatrixCpuBufferForIndex("DebugDraw", pColliderComponent->GetModelMatrixIndexInBuffer(), &modelMatrix);
+			*modelMatrix = glm::mat4(1.0f);
+			*modelMatrix = glm::translate(*modelMatrix, glm::vec3(pColliderComponent->mScaledCollider.mCenter[0], pColliderComponent->mScaledCollider.mCenter[1], pColliderComponent->mScaledCollider.mCenter[2]));
+			*modelMatrix = glm::rotate(*modelMatrix, pPositionComponent->rotation,
+				glm::vec3(pPositionComponent->rotationAxisX, pPositionComponent->rotationAxisY, pPositionComponent->rotationAxisZ));
+			*modelMatrix = glm::scale(*modelMatrix, glm::vec3(pColliderComponent->mScaledCollider.mR[0], pColliderComponent->mScaledCollider.mR[1], pColliderComponent->mScaledCollider.mR[2]));
+			GetAppRenderer()->UpdateModelMatrixGpuBufferForIndex("DebugDraw", pColliderComponent->GetModelMatrixIndexInBuffer());
+
+			DebugDrawRenderable* pDebugDrawRenderable = &debugDrawRenderables[i];
+			AppMesh* pAppMesh = nullptr;
+			GetMesh(GetResourceLoader(), MeshType::DEBUG_BOX, &pAppMesh);
+			pDebugDrawRenderable->SetAppMesh(pAppMesh);
+			pDebugDrawRenderable->SetModelMatrixIndex(pColliderComponent->GetModelMatrixIndexInBuffer());
+			GetAppRenderer()->PushToRenderQueue(pDebugDrawRenderable);
+		}
 	}
 }
 

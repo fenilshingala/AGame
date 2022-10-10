@@ -37,7 +37,8 @@ struct ModelMatrixDynamicBuffer
 static const std::vector<std::pair<const char*, VkShaderStageFlagBits>> shaderList = {
 	{ "basic.vert", VK_SHADER_STAGE_VERTEX_BIT }, {"basic.frag", VK_SHADER_STAGE_FRAGMENT_BIT },
 	{ "pbr.vert", VK_SHADER_STAGE_VERTEX_BIT }, {"pbr.frag", VK_SHADER_STAGE_FRAGMENT_BIT },
-	{ "skybox.vert", VK_SHADER_STAGE_VERTEX_BIT }, {"skybox.frag", VK_SHADER_STAGE_FRAGMENT_BIT }
+	{ "skybox.vert", VK_SHADER_STAGE_VERTEX_BIT }, {"skybox.frag", VK_SHADER_STAGE_FRAGMENT_BIT },
+	{ "debugdraw.vert", VK_SHADER_STAGE_VERTEX_BIT }, {"debugdraw.frag", VK_SHADER_STAGE_FRAGMENT_BIT }
 };
 
 #if defined(_WIN32)
@@ -132,6 +133,8 @@ void AppRenderer::Init(IApp* a_pApp)
 	pPBRPipeline = new Pipeline();
 	pSkyboxResDesc = new ResourceDescriptor(8);
 	pSkyboxPipeline = new Pipeline();
+	pDebugDrawResDesc = new ResourceDescriptor(2);
+	pDebugDrawPipeline = new Pipeline();
 
 	pSceneDescriptorSet = new DescriptorSet();
 	pDepthBuffer = new RenderTarget();
@@ -144,6 +147,8 @@ void AppRenderer::Exit()
 	delete pDepthBuffer;
 	delete pSceneDescriptorSet;
 
+	delete pDebugDrawPipeline;
+	delete pDebugDrawResDesc;
 	delete pSkyboxPipeline;
 	delete pSkyboxResDesc;
 	delete pPBRPipeline;
@@ -306,6 +311,12 @@ void AppRenderer::Load()
 		}
 		CreateResourceDescriptor(pRenderer, &pSkyboxResDesc);
 		resourceDescriptorNameMap.insert({ (uint32_t)std::hash<std::string>{}("Skybox"), pSkyboxResDesc });
+		/* ----------------------------------------------------------------------------------------- */
+
+		/* ----------------------------------- Debug Draw Resource Desc ----------------------------------- */
+		memcpy(pDebugDrawResDesc->desc.descriptors, pPBRResDesc->desc.descriptors, sizeof(pPBRResDesc->desc.descriptors[0]) + sizeof(pPBRResDesc->desc.descriptors[1]));
+		CreateResourceDescriptor(pRenderer, &pDebugDrawResDesc);
+		resourceDescriptorNameMap.insert({ (uint32_t)std::hash<std::string>{}("DebugDraw"), pDebugDrawResDesc });
 		/* ----------------------------------------------------------------------------------------- */
 
 		/* ----------------------------------- View Projection Scene Descriptors ----------------------------------- */
@@ -490,6 +501,44 @@ void AppRenderer::Load()
 	pSkyboxPipeline->desc.sampleCount = VK_SAMPLE_COUNT_1_BIT;
 	pSkyboxPipeline->desc.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
 	CreateGraphicsPipeline(pRenderer, &pSkyboxPipeline);
+
+	// DEBUG DRAW PIPELINE
+	ShaderModule* pDebugDrawVertexShader = nullptr, * pDebugDrawFragmentShader = nullptr;
+	GetShaderModule(GetResourceLoader(), "debugdraw.vert", &pDebugDrawVertexShader);
+	GetShaderModule(GetResourceLoader(), "debugdraw.frag", &pDebugDrawFragmentShader);
+
+	pDebugDrawPipeline->desc.shaderCount = 2;
+	ShaderModule* debugDrawShaders[2] = {
+		pDebugDrawVertexShader,
+		pDebugDrawFragmentShader
+	};
+	pDebugDrawPipeline->desc.shaders = debugDrawShaders;
+
+	VertexAttribute debugDrawAttribs[1] = {};
+	debugDrawAttribs[0] = {
+		0,									// binding
+		sizeof(glm::vec3),					// stride
+		VK_VERTEX_INPUT_RATE_VERTEX,		// inputrate
+		0,									// location
+		VK_FORMAT_R32G32B32_SFLOAT,			// format
+		0									// offset
+	};
+
+	pDebugDrawPipeline->desc.attribCount = 1;
+	pDebugDrawPipeline->desc.attribs = debugDrawAttribs;
+	pDebugDrawPipeline->desc.colorAttachmentCount = 1;
+	pDebugDrawPipeline->desc.colorFormats[0] = pRenderer->swapchainRenderTargets[0]->pTexture->desc.format;
+	pDebugDrawPipeline->desc.cullMode = VK_CULL_MODE_NONE;
+	pDebugDrawPipeline->desc.depthFunction = VK_COMPARE_OP_LESS;
+	pDebugDrawPipeline->desc.depthStencilFormat = VK_FORMAT_D32_SFLOAT;
+	pDebugDrawPipeline->desc.depthTest = false;
+	pDebugDrawPipeline->desc.depthWrite = false;
+	pDebugDrawPipeline->desc.frontFace = VK_FRONT_FACE_CLOCKWISE;
+	pDebugDrawPipeline->desc.polygonMode = VK_POLYGON_MODE_LINE;
+	pDebugDrawPipeline->desc.pResourceDescriptor = pSkyboxResDesc;
+	pDebugDrawPipeline->desc.sampleCount = VK_SAMPLE_COUNT_1_BIT;
+	pDebugDrawPipeline->desc.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
+	CreateGraphicsPipeline(pRenderer, &pDebugDrawPipeline);
 }
 
 void AppRenderer::Unload()
@@ -499,6 +548,7 @@ void AppRenderer::Unload()
 
 	WaitDeviceIdle(pRenderer);
 
+	DestroyGraphicsPipeline(pRenderer, &pDebugDrawPipeline);
 	DestroyGraphicsPipeline(pRenderer, &pSkyboxPipeline);
 	DestroyGraphicsPipeline(pRenderer, &pPBRPipeline);
 	DestroyRenderTarget(pRenderer, &pDepthBuffer);
@@ -508,6 +558,7 @@ void AppRenderer::Unload()
 
 	if (pRenderer->window.reset)
 	{
+		DestroyResourceDescriptor(pRenderer, &pDebugDrawResDesc);
 		DestroyResourceDescriptor(pRenderer, &pSkyboxResDesc);
 		DestroyResourceDescriptor(pRenderer, &pPBRResDesc);
 		resourceDescriptorNameMap.clear();

@@ -21,13 +21,13 @@
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="Configuration">
     <ConfigurationType>Application</ConfigurationType>
     <UseDebugLibraries>true</UseDebugLibraries>
-    <PlatformToolset>v142</PlatformToolset>
+    <PlatformToolset>v143</PlatformToolset>
     <CharacterSet>Unicode</CharacterSet>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="Configuration">
     <ConfigurationType>Application</ConfigurationType>
     <UseDebugLibraries>false</UseDebugLibraries>
-    <PlatformToolset>v142</PlatformToolset>
+    <PlatformToolset>v143</PlatformToolset>
     <WholeProgramOptimization>true</WholeProgramOptimization>
     <CharacterSet>Unicode</CharacterSet>
   </PropertyGroup>
@@ -90,6 +90,8 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="..\..\src\App\AppRenderer.cpp" />
+    <ClCompile Include="..\..\src\App\Components\ColliderComponent.cpp" />
+    <ClCompile Include="..\..\src\App\Components\ControllerComponent.cpp" />
     <ClCompile Include="..\..\src\App\Components\ModelComponent.cpp" />
     <ClCompile Include="..\..\src\App\Components\PositionComponent.cpp" />
     <ClCompile Include="..\..\src\App\Components\SkyboxComponent.cpp" />
@@ -97,6 +99,8 @@
     <ClCompile Include="..\..\src\App\ResourceLoader.cpp" />
     <ClCompile Include="..\..\src\App\Serializer.cpp" />
     <ClCompile Include="..\..\src\App\Systems\ModelRenderSystem.cpp" />
+    <ClCompile Include="..\..\src\App\Systems\MotionSystem.cpp" />
+    <ClCompile Include="..\..\src\App\Systems\Physics.cpp" />
     <ClCompile Include="..\..\src\App\Systems\SkyboxRenderSystem.cpp" />
   </ItemGroup>
   <ItemGroup>
@@ -110,6 +114,8 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\src\App\AppRenderer.h" />
+    <ClInclude Include="..\..\src\App\Components\ColliderComponent.h" />
+    <ClInclude Include="..\..\src\App\Components\ControllerComponent.h" />
     <ClInclude Include="..\..\src\App\Components\ModelComponent.h" />
     <ClInclude Include="..\..\src\App\Components\PositionComponent.h" />
     <ClInclude Include="..\..\src\App\Components\SkyboxComponent.h" />
@@ -117,6 +123,8 @@
     <ClInclude Include="..\..\src\App\Serializer.h" />
     <ClInclude Include="..\..\src\App\Systems.h" />
     <ClInclude Include="..\..\src\App\Systems\ModelRenderSystem.h" />
+    <ClInclude Include="..\..\src\App\Systems\MotionSystem.h" />
+    <ClInclude Include="..\..\src\App\Systems\Physics.h" />
     <ClInclude Include="..\..\src\App\Systems\SkyboxRenderSystem.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

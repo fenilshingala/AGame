@@ -50,6 +50,18 @@
     <ClCompile Include="..\..\src\App\Systems\SkyboxRenderSystem.cpp">
       <Filter>Source Files\Systems</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\App\Components\ColliderComponent.cpp">
+      <Filter>Source Files\Components</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\App\Systems\Physics.cpp">
+      <Filter>Source Files\Systems</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\App\Systems\MotionSystem.cpp">
+      <Filter>Source Files\Systems</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\App\Components\ControllerComponent.cpp">
+      <Filter>Source Files\Components</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <None Include="..\..\src\App\Resources\Shaders\basic.frag">
@@ -101,6 +113,18 @@
     </ClInclude>
     <ClInclude Include="..\..\src\App\Systems\SkyboxRenderSystem.h">
       <Filter>Source Files\Systems</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\App\Components\ColliderComponent.h">
+      <Filter>Source Files\Components</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\App\Systems\Physics.h">
+      <Filter>Source Files\Systems</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\App\Systems\MotionSystem.h">
+      <Filter>Source Files\Systems</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\App\Components\ControllerComponent.h">
+      <Filter>Source Files\Components</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>
