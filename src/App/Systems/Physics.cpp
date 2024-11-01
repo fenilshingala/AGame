@@ -1,5 +1,6 @@
 #include <vector>
 #include "Physics.h"
+#include "../../Engine/ECS/Component.h"
 
 #include "../Components/ColliderComponent.h"
 

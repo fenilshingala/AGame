@@ -176,9 +176,6 @@ ModelRenderSystem::ModelRenderSystem()
 ModelRenderSystem::~ModelRenderSystem()
 {}
 
-static float currentTime = 0.0f;
-static int animationIndex = 0;
-
 void ModelRenderSystem::Update(float dt)
 {
 	static uint32_t renderablesCount = (uint32_t)modelComponents.size();
@@ -199,12 +196,47 @@ void ModelRenderSystem::Update(float dt)
 		AppModel* pAppModel = pModelComponent->GetModel();
 		if (pAppModel->pModel->animations.size())
 		{
-			currentTime += dt;
-			if (currentTime > pAppModel->pModel->animations[animationIndex].end)
+			int& curAnimIndex = pModelComponent->currentAnimationIndex;
+			int& transAnimIndex = pModelComponent->transitioningAnimationIndex;
+			
+			const float curAnimLength = pAppModel->pModel->animations[curAnimIndex].end - pAppModel->pModel->animations[curAnimIndex].start;
+			float& curAnimTime = pModelComponent->currentAnimationTime;
+
+			if (transAnimIndex == -1)
 			{
-				currentTime -= pAppModel->pModel->animations[animationIndex].end;
+				UpdateAnimation(curAnimIndex, curAnimTime, pAppModel->pModel);
 			}
-			UpdateAnimation(animationIndex, currentTime, pAppModel->pModel);
+			else
+			{
+				const float transAnimLength = pAppModel->pModel->animations[transAnimIndex].end - pAppModel->pModel->animations[transAnimIndex].start;
+				float& transAnimTime = pModelComponent->transitioningAnimationTime;
+				float& transitionTime = pModelComponent->transitioningTime;
+				
+				float& blendFactor = pModelComponent->blendFactor;
+
+				const float curNormTime = fmod(curAnimTime / curAnimLength, 1.0f);
+				transAnimTime = transAnimLength * curNormTime;
+
+				if (transitionTime <= std::max(curAnimLength, transAnimLength))
+				{
+					transitionTime += dt;
+					blendFactor = transitionTime / std::max(curAnimLength, transAnimLength);
+					BlendAnimation(curAnimIndex, transAnimIndex, curAnimTime, transAnimTime, blendFactor, pAppModel->pModel);
+				}
+				else
+				{
+					curAnimIndex = transAnimIndex;
+					curAnimTime = transAnimTime;
+					transAnimIndex = -1;
+					transAnimTime = 0.0f;
+					transitionTime = 0.0f;
+					blendFactor = 0.0f;
+				}
+			}
+
+			curAnimTime += dt;
+			if (curAnimTime > curAnimLength)
+				curAnimTime -= curAnimLength;
 		}
 
 		ModelRenderable* pRenderable = &renderables[i];
@@ -214,6 +246,7 @@ void ModelRenderSystem::Update(float dt)
 		GetAppRenderer()->PushToRenderQueue(pRenderable);
 
 		ColliderComponent* pColliderComponent = GetEntityManager()->getEntityByID(pModelComponent->GetOwnerID())->GetComponent<ColliderComponent>();
+		pColliderComponent->UpdateScaledCollider();
 		if (pColliderComponent)
 		{
 			modelMatrix = nullptr;

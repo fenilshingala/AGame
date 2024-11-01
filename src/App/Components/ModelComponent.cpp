@@ -19,7 +19,9 @@
 DEFINE_COMPONENT(ModelComponent)
 
 ModelComponent::ModelComponent() :
-	modelPath(nullptr), pModel(nullptr), modelMatrixIndexInBuffer(-1)
+	modelPath(nullptr), pModel(nullptr), modelMatrixIndexInBuffer(-1), currentAnimationIndex(1), currentAnimationTime(0.0f),
+	transitioningAnimationIndex(-1), transitioningAnimationTime(0.0f), transitioningTime(0.0f),
+	blendFactor(0.0f)
 {
 }
 
@@ -50,7 +52,9 @@ void ModelComponent::Unload()
 START_REGISTRATION(ModelComponent)
 
 DEFINE_VARIABLE(ModelComponent, modelPath)
+DEFINE_VARIABLE(ModelComponent, currentAnimationIndex)
 
 START_REFERENCES(ModelComponent)
 REFERENCE_STRING_VARIABLE(ModelComponent, modelPath)
+REFERENCE_VARIABLE(ModelComponent, currentAnimationIndex)
 END

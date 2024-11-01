@@ -4,13 +4,14 @@
 
 #include "../Components/ControllerComponent.h"
 #include "../Components/PositionComponent.h"
-#include "../Components/ColliderComponent.h"
+#include "../Components/ModelComponent.h"
 
 #include "../ResourceLoader.h"
 
 #include "../../Engine/Renderer.h"
 #include "../../Engine/ModelLoader.h"
 #include "../../Engine/Platform.h"
+#include "../../Engine/OS/Windows/KeyBindigs.h"
 #define GLM_FORCE_RADIANS
 #define GLM_FORCE_DEPTH_ZERO_TO_ONE
 #include "../../../include/glm/glm.hpp"
@@ -20,6 +21,13 @@
 #include <queue>
 #include "../AppRenderer.h"
 #include <WinUser.h>
+
+enum class PlayerState
+{
+	IDLE = 0,
+	WALKING,
+	RUNNING
+};
 
 MotionSystem::MotionSystem()
 {}
@@ -36,16 +44,39 @@ void MotionSystem::Update(float dt)
 	for (ControllerComponent* pControllerComponent : controllerComponents)
 	{
 		PositionComponent* pPositionComponent = GetEntityManager()->getEntityByID(pControllerComponent->GetOwnerID())->GetComponent<PositionComponent>();
-		ColliderComponent* pColliderComponent = GetEntityManager()->getEntityByID(pControllerComponent->GetOwnerID())->GetComponent<ColliderComponent>();
-		if (keyStates[VK_LEFT])
+		ModelComponent* pModelComponent = GetEntityManager()->getEntityByID(pControllerComponent->GetOwnerID())->GetComponent<ModelComponent>();
+		enum class PlayerState curState = (PlayerState)pModelComponent->currentAnimationIndex;
+		enum class PlayerState nextState = curState;
+
+		if (!pControllerComponent->playerControl)
+			continue;
+
+		bool running = keyStates[KEY_LSHIFT];
+		float multiplier = running ? 1.5f : 1.0f;
+		float z = 0.0f, y = 0.0f;
+		
+		if (keyStates[KEY_W])
+			z = 0.1f * multiplier;
+		if (keyStates[KEY_S])
+			z = -0.1f * multiplier;
+		if (keyStates[KEY_A])
+			y = -0.1f * multiplier;
+		if (keyStates[KEY_D])
+			y = 0.1f * multiplier;
+
+		if (0.0f != z || 0.0f != y)
 		{
-			pPositionComponent->x -= 0.1f;
+			if (running)
+				nextState = PlayerState::RUNNING;
+			else
+				nextState = PlayerState::WALKING;
+
+			pPositionComponent->z += z;
+			pPositionComponent->y += y;
 		}
-		if (keyStates[VK_RIGHT])
-		{
-			pPositionComponent->x += 0.1f;
-		}
-		pColliderComponent->UpdateScaledCollider();
+
+		if (curState != nextState)
+			pModelComponent->transitioningAnimationIndex = (int)nextState;
 	}
 }
 

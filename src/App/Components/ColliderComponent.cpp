@@ -3,7 +3,6 @@
 #define GLM_FORCE_RADIANS
 #define GLM_FORCE_DEPTH_ZERO_TO_ONE
 #include "../../../include/glm/glm.hpp"
-#include "../../../include/glm/gtc/matrix_transform.hpp"
 
 #include <queue>
 
@@ -18,7 +17,8 @@
 
 DEFINE_COMPONENT(ColliderComponent)
 
-ColliderComponent::ColliderComponent()
+ColliderComponent::ColliderComponent() :
+	mScaledCollider(), mCollider(), modelMatrixIndexInBuffer(-1)
 {
 }
 
@@ -100,7 +100,7 @@ void ColliderComponent::UpdateScaledCollider()
 	if (pPositionComponent)
 	{
 		mScaledCollider.mCenter[0] = pPositionComponent->x + (mCollider.mCenter[0] * pPositionComponent->scaleX);
-		mScaledCollider.mCenter[1] = pPositionComponent->y + (mCollider.mCenter[1] * pPositionComponent->scaleY);
+		mScaledCollider.mCenter[1] = -pPositionComponent->y + (mCollider.mCenter[1] * pPositionComponent->scaleY);
 		mScaledCollider.mCenter[2] = pPositionComponent->z + (mCollider.mCenter[2] * pPositionComponent->scaleZ);
 
 		mScaledCollider.mR[0] = mCollider.mR[0] * pPositionComponent->scaleX;

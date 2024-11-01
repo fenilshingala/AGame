@@ -8,6 +8,7 @@
 #include "../ModelLoader.h"
 #include "../Renderer.h"
 #include "../Log.h"
+#include <set>
 
 void LoadNode(Node* parent, const tinygltf::Node& node, uint32_t nodeIndex, const tinygltf::Model& model,
 	std::vector<uint32_t>& indexBuffer, std::vector<Model::Vertex>& vertexBuffer, float globalscale, Model* a_pModel);
@@ -914,6 +915,36 @@ void GetSceneDimensions(Model* a_pModel)
 	a_pModel->aabb[3][2] = a_pModel->dimensions.min[2];
 }
 
+void GetUpdatedSRT(const AnimationChannel& channel, const AnimationSampler& sampler, const size_t i, const float u, glm::vec3& s, glm::quat& r, glm::vec3& t)
+{
+	switch (channel.path) {
+	case AnimationChannel::PathType::TRANSLATION: {
+		glm::vec4 trans = glm::mix(sampler.outputsVec4[i], sampler.outputsVec4[i + 1], u);
+		t = glm::vec3(trans);
+		break;
+	}
+	case AnimationChannel::PathType::SCALE: {
+		glm::vec4 scale = glm::mix(sampler.outputsVec4[i], sampler.outputsVec4[i + 1], u);
+		s = glm::vec3(scale);
+		break;
+	}
+	case AnimationChannel::PathType::ROTATION: {
+		glm::quat q1;
+		q1.x = sampler.outputsVec4[i].x;
+		q1.y = sampler.outputsVec4[i].y;
+		q1.z = sampler.outputsVec4[i].z;
+		q1.w = sampler.outputsVec4[i].w;
+		glm::quat q2;
+		q2.x = sampler.outputsVec4[i + 1].x;
+		q2.y = sampler.outputsVec4[i + 1].y;
+		q2.z = sampler.outputsVec4[i + 1].z;
+		q2.w = sampler.outputsVec4[i + 1].w;
+		r = glm::normalize(glm::slerp(q1, q2, u));
+		break;
+	}
+	}
+}
+
 void UpdateAnimation(uint32_t a_uIndex, float a_fTime, Model* a_pModel)
 {
 	if (a_pModel->animations.empty()) {
@@ -937,37 +968,138 @@ void UpdateAnimation(uint32_t a_uIndex, float a_fTime, Model* a_pModel)
 			if ((a_fTime >= sampler.inputs[i]) && (a_fTime <= sampler.inputs[i + 1])) {
 				float u = std::max(0.0f, a_fTime - sampler.inputs[i]) / (sampler.inputs[i + 1] - sampler.inputs[i]);
 				if (u <= 1.0f) {
-					switch (channel.path) {
-					case AnimationChannel::PathType::TRANSLATION: {
-						glm::vec4 trans = glm::mix(sampler.outputsVec4[i], sampler.outputsVec4[i + 1], u);
-						channel.node->translation = glm::vec3(trans);
-						break;
-					}
-					case AnimationChannel::PathType::SCALE: {
-						glm::vec4 trans = glm::mix(sampler.outputsVec4[i], sampler.outputsVec4[i + 1], u);
-						channel.node->scale = glm::vec3(trans);
-						break;
-					}
-					case AnimationChannel::PathType::ROTATION: {
-						glm::quat q1;
-						q1.x = sampler.outputsVec4[i].x;
-						q1.y = sampler.outputsVec4[i].y;
-						q1.z = sampler.outputsVec4[i].z;
-						q1.w = sampler.outputsVec4[i].w;
-						glm::quat q2;
-						q2.x = sampler.outputsVec4[i + 1].x;
-						q2.y = sampler.outputsVec4[i + 1].y;
-						q2.z = sampler.outputsVec4[i + 1].z;
-						q2.w = sampler.outputsVec4[i + 1].w;
-						channel.node->rotation = glm::normalize(glm::slerp(q1, q2, u));
-						break;
-					}
-					}
+					GetUpdatedSRT(channel, sampler, i, u, channel.node->scale, channel.node->rotation, channel.node->translation);
 					updated = true;
 				}
 			}
 		}
 	}
+	if (updated) {
+		for (Node* node : a_pModel->nodes) {
+			node->update();
+		}
+	}
+}
+
+template <typename T>
+T Lerp(const T& start, const T& end, const float t) {
+	return start * (1.0f - t) + end * t;
+}
+
+void ChannelBlendSRT(const AnimationChannel& channel,
+	const glm::vec3& s1, const glm::quat& r1, const glm::vec3& t1,
+	const float a_fBlendFactor,
+	const glm::vec3& s2, const glm::quat& r2, const glm::vec3& t2)
+{
+	switch (channel.path) {
+	case AnimationChannel::PathType::SCALE: {
+		channel.node->scale = Lerp(s1, s2, a_fBlendFactor);
+		break;
+	}
+	case AnimationChannel::PathType::TRANSLATION: {
+		channel.node->translation = Lerp(t1, t2, a_fBlendFactor);
+		break;
+	}
+	case AnimationChannel::PathType::ROTATION: {
+		channel.node->rotation = glm::slerp(r1, r2, a_fBlendFactor);
+		break;
+	}
+	}
+}
+
+void BlendAnimation(uint32_t a_nSrcIndex, uint32_t a_nDstIndex, float a_fSrcTime, float a_fDstTime, float a_fBlendFactor, Model* a_pModel)
+{
+	if (a_pModel->animations.empty()) {
+		LOG(LogSeverity::INFO, ".glTF does not contain animation.");
+		return;
+	}
+	if (a_nSrcIndex > static_cast<uint32_t>(a_pModel->animations.size()) - 1) {
+		LOG(LogSeverity::INFO, "No animation with index %d", a_nSrcIndex);
+		return;
+	}
+	if (a_nDstIndex > static_cast<uint32_t>(a_pModel->animations.size()) - 1) {
+		LOG(LogSeverity::INFO, "No animation with index %d", a_nDstIndex);
+		return;
+	}
+
+	struct AnimationBlendData
+	{
+		glm::vec3 s, t;
+		glm::quat r;
+	};
+	std::unordered_map<uint32_t, AnimationBlendData> blendData;
+	std::set<uint32_t> dstAffectedIndices;
+
+	Animation& dstAnimation = a_pModel->animations[a_nDstIndex];
+	for (const AnimationChannel& channel : dstAnimation.channels) {
+		const AnimationSampler& sampler = dstAnimation.samplers[channel.samplerIndex];
+		if (sampler.inputs.size() > sampler.outputsVec4.size()) {
+			continue;
+		}
+		for (size_t i = 0; i < sampler.inputs.size() - 1; i++) {
+			if ((a_fDstTime >= sampler.inputs[i]) && (a_fDstTime <= sampler.inputs[i + 1])) {
+				float u = std::max(0.0f, a_fDstTime - sampler.inputs[i]) / (sampler.inputs[i + 1] - sampler.inputs[i]);
+				if (u <= 1.0f) {
+					dstAffectedIndices.insert(channel.node->index);
+				}
+			}
+		}
+	}
+
+	Animation& srcAnimation = a_pModel->animations[a_nSrcIndex];
+	bool updated = false;
+	for (AnimationChannel channel : srcAnimation.channels) {
+		const AnimationSampler& sampler = srcAnimation.samplers[channel.samplerIndex];
+		if (sampler.inputs.size() > sampler.outputsVec4.size()) {
+			continue;
+		}
+
+		for (size_t i = 0; i < sampler.inputs.size() - 1; i++) {
+			if ((a_fSrcTime >= sampler.inputs[i]) && (a_fSrcTime <= sampler.inputs[i + 1])) {
+				float u = std::max(0.0f, a_fSrcTime - sampler.inputs[i]) / (sampler.inputs[i + 1] - sampler.inputs[i]);
+				if (u <= 1.0f) {
+					glm::vec3 s, t;
+					glm::quat r;
+					GetUpdatedSRT(channel, sampler, i, u, s, r, t);
+
+					if (dstAffectedIndices.find(channel.node->index) != dstAffectedIndices.end())
+						blendData.insert({ channel.node->index, {channel.node->scale, channel.node->translation, channel.node->rotation} });
+					else
+						ChannelBlendSRT(channel, s, r, t, a_fBlendFactor, channel.node->scale, channel.node->rotation, channel.node->translation);
+					updated = true;
+				}
+			}
+		}
+	}
+
+	for (const AnimationChannel& channel : dstAnimation.channels) {
+		const AnimationSampler& sampler = dstAnimation.samplers[channel.samplerIndex];
+		if (sampler.inputs.size() > sampler.outputsVec4.size()) {
+			continue;
+		}
+
+		for (size_t i = 0; i < sampler.inputs.size() - 1; i++) {
+			if ((a_fDstTime >= sampler.inputs[i]) && (a_fDstTime <= sampler.inputs[i + 1])) {
+				float u = std::max(0.0f, a_fDstTime - sampler.inputs[i]) / (sampler.inputs[i + 1] - sampler.inputs[i]);
+				if (u <= 1.0f) {
+					glm::vec3 s, t;
+					glm::quat r;
+					GetUpdatedSRT(channel, sampler, i, u, s, r, t);
+					std::unordered_map<uint32_t, AnimationBlendData>::const_iterator itr = blendData.find(channel.node->index);
+					if (itr != blendData.end())
+					{
+						ChannelBlendSRT(channel, itr->second.s, itr->second.r, itr->second.t, a_fBlendFactor, s, r, t);
+						blendData.erase(itr);
+					}
+					else
+						ChannelBlendSRT(channel, channel.node->scale, channel.node->rotation, channel.node->translation, a_fBlendFactor, s, r, t);
+					
+					updated = true;
+				}
+			}
+		}
+	}
+
 	if (updated) {
 		for (Node* node : a_pModel->nodes) {
 			node->update();

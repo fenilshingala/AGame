@@ -16,6 +16,12 @@ public:
 	inline uint32_t GetModelMatrixIndexInBuffer() { return modelMatrixIndexInBuffer; }
 
 	char* modelPath;
+	int currentAnimationIndex;
+	float currentAnimationTime;
+	int transitioningAnimationIndex;
+	float transitioningAnimationTime;
+	float transitioningTime;
+	float blendFactor;
 
 private:
 	AppModel* pModel;
@@ -26,4 +32,5 @@ END
 
 REGISTER_COMPONENT_CLASS(ModelComponent)
 	REGISTER_VARIABLE(modelPath)
+	REGISTER_VARIABLE(currentAnimationIndex)
 END

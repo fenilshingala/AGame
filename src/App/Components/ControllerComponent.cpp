@@ -7,7 +7,7 @@
 DEFINE_COMPONENT(ControllerComponent)
 
 ControllerComponent::ControllerComponent() :
-	keyBoardControl(false)
+	playerControl(false)
 {
 }
 
@@ -30,9 +30,9 @@ void ControllerComponent::Unload()
 
 START_REGISTRATION(ControllerComponent)
 
-DEFINE_VARIABLE(ControllerComponent, keyBoardControl)
+DEFINE_VARIABLE(ControllerComponent, playerControl)
 
 
 START_REFERENCES(ControllerComponent)
-	REFERENCE_VARIABLE(ControllerComponent, keyBoardControl)
+	REFERENCE_VARIABLE(ControllerComponent, playerControl)
 END

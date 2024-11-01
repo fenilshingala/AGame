@@ -8,11 +8,11 @@ public:
 	virtual void Load() override;
 	virtual void Unload() override;
 
-	bool keyBoardControl;
+	bool playerControl;
 END
 
 
 
 REGISTER_COMPONENT_CLASS(ControllerComponent)
-	REGISTER_VARIABLE(keyBoardControl)
+	REGISTER_VARIABLE(playerControl)
 END
